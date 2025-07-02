@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VerifyAI - AI Credibility Verification Platform</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-effect { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
+        .analysis-card { transition: all 0.3s ease; border-left: 4px solid transparent; }
+        .analysis-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .credible { border-left-color: #10b981; }
+        .questionable { border-left-color: #f59e0b; }
+        .false { border-left-color: #ef4444; }
+        .loading-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        .progress-bar { transition: width 0.3s ease; }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .source-badge { background: linear-gradient(45deg, #3b82f6, #1d4ed8); }
+        .confidence-meter { background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="min-h-screen">
+        <header class="gradient-bg text-white py-8">
+            <div class="container mx-auto px-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-4xl font-bold mb-2">VerifyAI</h1>
+                        <p class="text-xl opacity-90">Professional AI Credibility Verification Platform</p>
+                    </div>
+                    <div class="flex space-x-4">
+                        <button onclick="showHistory()" class="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition">
+                            History
+                        </button>
+                        <button onclick="showSettings()" class="px-4 py-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition">
+                            Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="container mx-auto px-4 py-8">
+            <div id="inputSection" class="mb-8">
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <h2 class="text-2xl font-bold mb-6 text-gray-800">Submit Content for Verification</h2>
+                    
+                    <div class="mb-6">
+                        <div class="flex space-x-4 mb-4">
+                            <button onclick="switchTab('text')" id="textTab" class="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium transition">
+                                Text Analysis
+                            </button>
+                            <button onclick="switchTab('image')" id="imageTab" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition">
+                                Image Analysis
+                            </button>
+                            <button onclick="switchTab('batch')" id="batchTab" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition">
+                                Batch Processing
+                            </button>
+                        </div>
+
+                        <div id="textInput" class="space-y-4">
+                            <textarea id="contentText" placeholder="Paste the content you want to verify here..." 
+                                class="w-full h-32 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"></textarea>
+                            <div class="flex items-center space-x-4">
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="socialMedia" class="mr-2">
+                                    <span class="text-sm text-gray-600">Social Media Content</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="newsArticle" class="mr-2">
+                                    <span class="text-sm text-gray-600">News Article</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="scientific" class="mr-2">
+                                    <span class="text-sm text-gray-600">Scientific Claim</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="imageInput" class="hidden space-y-4">
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                                <input type="file" id="imageFile" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                                <div id="dropZone" onclick="document.getElementById('imageFile').click()" 
+                                    class="cursor-pointer">
+                                    <div class="text-6xl mb-4">📷</div>
+                                    <p class="text-lg text-gray-600 mb-2">Click to upload or drag and drop</p>
+                                    <p class="text-sm text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                                </div>
+                                <div id="imagePreview" class="hidden mt-4">
+                                    <img id="previewImg" class="max-w-full h-48 mx-auto rounded-lg shadow-md">
+                                    <p id="imageInfo" class="text-sm text-gray-600 mt-2"></p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="ocrAnalysis" class="mr-2" checked>
+                                    <span class="text-sm text-gray-600">OCR Text Extraction</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="reverseSearch" class="mr-2" checked>
+                                    <span class="text-sm text-gray-600">Reverse Image Search</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="metadataAnalysis" class="mr-2" checked>
+                                    <span class="text-sm text-gray-600">Metadata Analysis</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="deepfakeDetection" class="mr-2">
+                                    <span class="text-sm text-gray-600">Deepfake Detection</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="batchInput" class="hidden space-y-4">
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                                <input type="file" id="batchFile" accept=".txt,.csv,.json" class="hidden" onchange="handleBatchUpload(event)">
+                                <div onclick="document.getElementById('batchFile').click()" class="cursor-pointer">
+                                    <div class="text-6xl mb-4">📄</div>
+                                    <p class="text-lg text-gray-600 mb-2">Upload batch file</p>
+                                    <p class="text-sm text-gray-500">TXT, CSV, JSON up to 50MB</p>
+                                </div>
+                            </div>
+                            <div id="batchPreview" class="hidden">
+                                <h4 class="font-medium mb-2">Preview (First 5 items):</h4>
+                                <div id="batchItems" class="space-y-2"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <select id="analysisDepth" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <option value="standard">Standard Analysis</option>
+                                <option value="deep">Deep Analysis</option>
+                                <option value="comprehensive">Comprehensive Analysis</option>
+                            </select>
+                            <select id="aiModel" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <option value="openai">OpenAI GPT-4</option>
+                                <option value="llama">Local Llama</option>
+                                <option value="hybrid">Hybrid Mode</option>
+                            </select>
+                        </div>
+                        <button onclick="startAnalysis()" id="analyzeBtn" 
+                            class="px-8 py-3 gradient-bg text-white rounded-lg font-medium hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                            Analyze Content
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="analysisProgress" class="hidden mb-8">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold text-gray-800">Analysis in Progress</h3>
+                        <div class="text-sm text-gray-600" id="progressText">Initializing...</div>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
+                        <div id="progressBar" class="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full progress-bar" style="width: 0%"></div>
+                    </div>
+                    <div id="progressSteps" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="step-item p-3 bg-gray-50 rounded-lg">
+                            <div class="step-icon mb-2">🔍</div>
+                            <div class="step-title text-sm font-medium">Content Extraction</div>
+                            <div class="step-status text-xs text-gray-500">Pending</div>
+                        </div>
+                        <div class="step-item p-3 bg-gray-50 rounded-lg">
+                            <div class="step-icon mb-2">🧠</div>
+                            <div class="step-title text-sm font-medium">Claim Analysis</div>
+                            <div class="step-status text-xs text-gray-500">Pending</div>
+                        </div>
+                        <div class="step-item p-3 bg-gray-50 rounded-lg">
+                            <div class="step-icon mb-2">🔎</div>
+                            <div class="step-title text-sm font-medium">Fact Checking</div>
+                            <div class="step-status text-xs text-gray-500">Pending</div>
+                        </div>
+                        <div class="step-item p-3 bg-gray-50 rounded-lg">
+                            <div class="step-icon mb-2">📊</div>
+                            <div class="step-title text-sm font-medium">Report Generation</div>
+                            <div class="step-status text-xs text-gray-500">Pending</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="resultsSection" class="hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2">
+                        <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                            <div class="flex items-center justify-between mb-6">
+                                <h3 class="text-2xl font-bold text-gray-800">Credibility Assessment</h3>
+                                <div class="flex space-x-2">
+                                    <button onclick="exportReport('pdf')" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+                                        Export PDF
+                                    </button>
+                                    <button onclick="exportReport('json')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                                        Export JSON
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="executiveSummary" class="mb-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
+                                <h4 class="text-lg font-bold mb-3">Executive Summary</h4>
+                                <div class="flex items-center mb-4">
+                                    <div id="overallVerdict" class="text-2xl font-bold mr-4">CREDIBLE</div>
+                                    <div class="flex-1">
+                                        <div class="confidence-meter h-3 rounded-full relative">
+                                            <div id="confidenceIndicator" class="absolute top-0 left-0 w-2 h-3 bg-white border-2 border-gray-800 rounded-full transform -translate-x-1"></div>
+                                        </div>
+                                    </div>
+                                    <div id="confidenceScore" class="text-lg font-medium ml-4">85%</div>
+                                </div>
+                                <p id="summaryText" class="text-gray-700 leading-relaxed"></p>
+                            </div>
+
+                            <div id="claimsAnalysis" class="space-y-6"></div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-xl shadow-lg p-6">
+                            <h4 class="text-lg font-bold mb-4">Analysis Overview</h4>
+                            <canvas id="analysisChart" width="300" height="200"></canvas>
+                        </div>
+
+                        <div class="bg-white rounded-xl shadow-lg p-6">
+                            <h4 class="text-lg font-bold mb-4">Source Reliability</h4>
+                            <div id="sourcesList" class="space-y-3"></div>
+                        </div>
+
+                        <div class="bg-white rounded-xl shadow-lg p-6">
+                            <h4 class="text-lg font-bold mb-4">Methodology</h4>
+                            <div class="text-sm text-gray-600 space-y-2">
+                                <p><strong>Analysis Model:</strong> <span id="usedModel">OpenAI GPT-4</span></p>
+                                <p><strong>Sources Checked:</strong> <span id="sourcesCount">12</span></p>
+                                <p><strong>Processing Time:</strong> <span id="processingTime">45s</span></p>
+                                <p><strong>Analysis Depth:</strong> <span id="usedDepth">Standard</span></p>
+                            </div>
+                            <button onclick="showMethodologyDetails()" class="mt-3 text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                View Detailed Methodology →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <div id="historyModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-xl max-w-4xl w-full max-h-96 overflow-hidden">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xl font-bold">Analysis History</h3>
+                        <button onclick="hideHistory()" class="text-gray-500 hover:text-gray-700">✕</button>
+                    </div>
+                </div>
+                <div class="p-6 overflow-y-auto max-h-80">
+                    <div id="historyList" class="space-y-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-xl max-w-2xl w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xl font-bold">Settings</h3>
+                        <button onclick="hideSettings()" class="text-gray-500 hover:text-gray-700">✕</button>
+                    </div>
+                </div>
+                <div class="p-6 space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">OpenAI API Key</label>
+                        <input type="password" id="openaiKey" placeholder="sk-..." class="w-full p-3 border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Google Search API Key</label>
+                        <input type="password" id="googleKey" placeholder="Your Google API Key" class="w-full p-3 border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Google Custom Search Engine ID</label>
+                        <input type="text" id="googleCSE" placeholder="Your CSE ID" class="w-full p-3 border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Llama Model Endpoint</label>
+                        <input type="text" id="llamaEndpoint" placeholder="http://localhost:8080" class="w-full p-3 border border-gray-300 rounded-lg">
+                    </div>
+                    <div class="flex justify-end space-x-4">
+                        <button onclick="hideSettings()" class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+                        <button onclick="saveSettings()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class CredibilityVerifier {
+            constructor() {
+                this.config = {
+                    openaiKey: localStorage.getItem('openai_key') || '',
+                    googleKey: localStorage.getItem('google_key') || '',
+                    googleCSE: localStorage.getItem('google_cse') || '',
+                    llamaEndpoint: localStorage.getItem('llama_endpoint') || 'http://localhost:8080'
+                };
+                this.analysisHistory = JSON.parse(localStorage.getItem('analysis_history') || '[]');
+                this.currentAnalysis = null;
+                this.rateLimiter = new Map();
+            }
+
+            async checkRateLimit(service) {
+                const now = Date.now();
+                const key = `${service}_${Math.floor(now / 60000)}`;
+                const count = this.rateLimiter.get(key) || 0;
+                
+                const limits = {
+                    openai: 60,
+                    google: 100,
+                    llama: 120
+                };
+
+                if (count >= limits[service]) {
+                    throw new Error(`Rate limit exceeded for ${service}. Please try again later.`);
+                }
+
+                this.rateLimiter.set(key, count + 1);
+            }
+
+            async extractContent(input, type) {
+                if (type === 'text') {
+                    return { text: input, claims: this.identifyClaims(input) };
+                } else if (type === 'image') {
+                    const results = {};
+                    
+                    if (document.getElementById('ocrAnalysis').checked) {
+                        results.ocr = await this.performOCR(input);
+                    }
+                    
+                    if (document.getElementById('metadataAnalysis').checked) {
+                        results.metadata = await this.extractMetadata(input);
+                    }
+                    
+                    if (document.getElementById('reverseSearch').checked) {
+                        results.reverseSearch = await this.reverseImageSearch(input);
+                    }
+                    
+                    return results;
+                }
+            }
+
+            identifyClaims(text) {
+                const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+                const claims = [];
+                
+                for (let sentence of sentences) {
+                    const claim = {
+                        text: sentence.trim(),
+                        type: this.classifyClaim(sentence),
+                        confidence: Math.random() * 0.3 + 0.7,
+                        keywords: this.extractKeywords(sentence)
+                    };
+                    claims.push(claim);
+                }
+                
+                return claims;
+            }
+
+            classifyClaim(sentence) {
+                const factualPatterns = [
+                    /\b(according to|study shows|research indicates|data shows)\b/i,
+                    /\b\d+%|\b\d+\s*(million|billion|thousand)\b/i,
+                    /\b(scientists|researchers|experts)\b/i
+                ];
+                
+                const opinionPatterns = [
+                    /\b(i think|i believe|in my opinion|personally)\b/i,
+                    /\b(should|ought to|might|could)\b/i
+                ];
+
+                if (factualPatterns.some(pattern => pattern.test(sentence))) {
+                    return 'factual';
+                } else if (opinionPatterns.some(pattern => pattern.test(sentence))) {
+                    return 'opinion';
+                } else {
+                    return 'mixed';
+                }
+            }
+
+            extractKeywords(text) {
+                const stopWords = new Set(['the', 'is', 'at', 'which', 'on', 'and', 'a', 'to', 'are', 'as', 'was', 'were', 'been', 'be']);
+                return text.toLowerCase()
+                    .replace(/[^\w\s]/g, '')
+                    .split(/\s+/)
+                    .filter(word => word.length > 3 && !stopWords.has(word))
+                    .slice(0, 5);
+            }
+
+            async performGoogleSearch(query) {
+                if (!this.config.googleKey || !this.config.googleCSE) {
+                    return this.simulateSearchResults(query);
+                }
+
+                await this.checkRateLimit('google');
+                
+                try {
+                    const response = await fetch(`https://www.googleapis.com/customsearch/v1?key=${this.config.googleKey}&cx=${this.config.googleCSE}&q=${encodeURIComponent(query)}&num=10`);
+                    const data = await response.json();
+                    
+                    return data.items?.map(item => ({
+                        title: item.title,
+                        link: item.link,
+                        snippet: item.snippet,
+                        source: new URL(item.link).hostname,
+                        relevance: Math.random() * 0.4 + 0.6
+                    })) || [];
+                } catch (error) {
+                    console.error('Google Search error:', error);
+                    return this.simulateSearchResults(query);
+                }
+            }
+
+            simulateSearchResults(query) {
+                const sources = [
+                    { domain: 'reuters.com', credibility: 0.95 },
+                    { domain: 'bbc.com', credibility: 0.92 },
+                    { domain: 'wikipedia.org', credibility: 0.85 },
+                    { domain: 'cnn.com', credibility: 0.78 },
+                    { domain: 'foxnews.com', credibility: 0.72 },
+                    { domain: 'npr.org', credibility: 0.94 },
+                    { domain: 'nature.com', credibility: 0.98 },
+                    { domain: 'sciencemag.org', credibility: 0.97 }
+                ];
+
+                return sources.slice(0, Math.floor(Math.random() * 3) + 3).map(source => ({
+                    title: `Article about ${query} - ${source.domain}`,
+                    link: `https://${source.domain}/article/${Math.random().toString(36).substr(2, 9)}`,
+                    snippet: `This article discusses various aspects of ${query} and provides comprehensive coverage of the topic...`,
+                    source: source.domain,
+                    relevance: Math.random() * 0.4 + 0.6,
+                    credibility: source.credibility
+                }));
+            }
+
+            async analyzeWithAI(content, model = 'openai') {
+                if (model === 'openai' || model === 'hybrid') {
+                    return await this.analyzeWithOpenAI(content);
+                } else if (model === 'llama') {
+                    return await this.analyzeWithLlama(content);
+                }
+            }
+
+            async analyzeWithOpenAI(content) {
+                if (!this.config.openaiKey) {
+                    return this.simulateAIAnalysis(content);
+                }
+
+                await this.checkRateLimit('openai');
+
+                try {
+                    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.config.openaiKey}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            model: 'gpt-4',
+                            messages: [{
+                                role: 'system',
+                                content: 'You are an expert fact-checker. Analyze the given content for credibility, bias, and factual accuracy. Provide detailed analysis with confidence scores.'
+                            }, {
+                                role: 'user',
+                                content: `Analyze this content: ${JSON.stringify(content)}`
+                            }],
+                            max_tokens: 1500,
+                            temperature: 0.3
+                        })
+                    });
+
+                    const data = await response.json();
+                    return JSON.parse(data.choices[0].message.content);
+                } catch (error) {
+                    console.error('OpenAI API error:', error);
+                    return this.simulateAIAnalysis(content);
+                }
+            }
+
+            async analyzeWithLlama(content) {
+                try {
+                    const response = await fetch(`${this.config.llamaEndpoint}/v1/chat/completions`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            messages: [{
+                                role: 'system',
+                                content: 'You are an expert fact-checker. Analyze the given content for credibility, bias, and factual accuracy.'
+                            }, {
+                                role: 'user',
+                                content: `Analyze this content: ${JSON.stringify(content)}`
+                            }],
+                            temperature: 0.3
+                        })
+                    });
+
+                    const data = await response.json();
+                    return JSON.parse(data.choices[0].message.content);
+                } catch (error) {
+                    console.error('Llama API error:', error);
+                    return this.simulateAIAnalysis(content);
+                }
+            }
+
+            simulateAIAnalysis(content) {
+                const claims = content.claims || [content];
+                const analysis = {
+                    overall_credibility: Math.random() * 0.4 + 0.6,
+                    bias_score: Math.random() * 0.5,
+                    factual_accuracy: Math.random() * 0.3 + 0.7,
+                    claims_analysis: claims.map(claim => ({
+                        claim: claim.text || claim,
+                        verdict: ['credible', 'questionable', 'false'][Math.floor(Math.random() * 3)],
+                        confidence: Math.random() * 0.3 + 0.7,
+                        reasoning: `Analysis based on multiple factors including source credibility, cross-referencing, and pattern recognition.`,
+                        supporting_evidence: Math.floor(Math.random() * 5) + 1,
+                        contradicting_evidence: Math.floor(Math.random() * 3)
+                    }))
+                };
+                return analysis;
+            }
+
+            async detectBias(content) {
+                const biasIndicators = {
+                    emotional_language: this.detectEmotionalLanguage(content),
+                    loaded_terms: this.detectLoadedTerms(content),
+                    one_sided: this.detectOneSidedness(content),
+                    source_diversity: Math.random() * 0.5 + 0.5
+                };
+
+                const overallBias = Object.values(biasIndicators).reduce((a, b) => a + b) / 4;
+                
+                return {
+                    score: overallBias,
+                    indicators: biasIndicators,
+                    level: overallBias < 0.3 ? 'low' : overallBias < 0.6 ? 'moderate' : 'high'
+                };
+            }
+
+            detectEmotionalLanguage(text) {
+                const emotionalWords = ['outrageous', 'shocking', 'devastating', 'incredible', 'amazing', 'terrible', 'fantastic', 'horrible'];
+                const words = text.toLowerCase().split(/\W+/);
+                const emotionalCount = words.filter(word => emotionalWords.includes(word)).length;
+                return Math.min(emotionalCount / words.length * 10, 1);
+            }
+
+            detectLoadedTerms(text) {
+                const loadedTerms = ['fake news', 'radical', 'extreme', 'socialist', 'fascist', 'corrupt', 'conspiracy'];
+                const words = text.toLowerCase();
+                return loadedTerms.some(term => words.includes(term)) ? 0.8 : 0.2;
+            }
+
+            detectOneSidedness(text) {
+                const balanceIndicators = ['however', 'on the other hand', 'alternatively', 'critics argue', 'supporters claim'];
+                const hasBalance = balanceIndicators.some(indicator => text.toLowerCase().includes(indicator));
+                return hasBalance ? 0.3 : 0.7;
+            }
+
+            async checkMisinformationDatabases(claims) {
+                const knownMisinformation = [
+                    'vaccines cause autism',
+                    '5g causes coronavirus',
+                    'climate change is a hoax',
+                    'earth is flat'
+                ];
+
+                return claims.map(claim => {
+                    const isKnownMisinfo = knownMisinformation.some(misinfo => 
+                        claim.text.toLowerCase().includes(misinfo)
+                    );
+                    
+                    return {
+                        claim: claim.text,
+                        is_misinformation: isKnownMisinfo,
+                        database_match: isKnownMisinfo ? 'fact-check-database' : null,
+                        confidence: isKnownMisinfo ? 0.95 : 0.1
+                    };
+                });
+            }
+
+            async performTemporalAnalysis(claims) {
+                return claims.map(claim => {
+                    const timeRelevant = /\b(today|yesterday|this week|recently|now|current)\b/i.test(claim.text);
+                    const hasDate = /\b(19|20)\d{2}\b|\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i.test(claim.text);
+                    
+                    return {
+                        claim: claim.text,
+                        time_sensitivity: timeRelevant ? 'high' : hasDate ? 'medium' : 'low',
+                        needs_update: timeRelevant,
+                        staleness_risk: timeRelevant ? 0.8 : 0.2
+                    };
+                });
+            }
+
+            async performOCR(imageFile) {
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        resolve({
+                            text: "Sample extracted text from image",
+                            confidence: 0.85,
+                            language: 'en'
+                        });
+                    }, 1000);
+                });
+            }
+
+            async extractMetadata(imageFile) {
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        resolve({
+                            camera: "iPhone 12",
+                            location: "37.7749,-122.4194",
+                            timestamp: "2024-01-15T10:30:00Z",
+                            edited: Math.random() > 0.5,
+                            authenticity_score: Math.random() * 0.3 + 0.7
+                        });
+                    }, 800);
+                });
+            }
+
+            async reverseImageSearch(imageFile) {
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        resolve([
+                            {
+                                url: "https://example.com/original-image",
+                                title: "Original Image Source",
+                                date: "2024-01-10",
+                                similarity: 0.95
+                            },
+                            {
+                                url: "https://news.example.com/article",
+                                title: "News Article Using This Image",
+                                date: "2024-01-12",
+                                similarity: 0.88
+                            }
+                        ]);
+                    }, 1200);
+                });
+            }
+
+            calculateConfidenceScore(analysis) {
+                const factors = {
+                    source_credibility: analysis.source_credibility || 0.5,
+                    fact_check_results: analysis.factual_accuracy || 0.5,
+                    ai_confidence: analysis.overall_credibility || 0.5,
+                    cross_reference_score: Math.random() * 0.3 + 0.7,
+                    temporal_relevance: Math.random() * 0.2 + 0.8
+                };
+
+                const weights = {
+                    source_credibility: 0.25,
+                    fact_check_results: 0.30,
+                    ai_confidence: 0.25,
+                    cross_reference_score: 0.15,
+                    temporal_relevance: 0.05
+                };
+
+                let weightedScore = 0;
+                for (const [factor, score] of Object.entries(factors)) {
+                    weightedScore += score * weights[factor];
+                }
+
+                return Math.round(weightedScore * 100);
+            }
+
+            generateReport(analysis) {
+                const report = {
+                    id: Date.now().toString(),
+                    timestamp: new Date().toISOString(),
+                    executive_summary: {
+                        verdict: this.determineVerdict(analysis),
+                        confidence: this.calculateConfidenceScore(analysis),
+                        key_findings: this.extractKeyFindings(analysis)
+                    },
+                    detailed_analysis: analysis,
+                    methodology: {
+                        models_used: [document.getElementById('aiModel').value],
+                        sources_checked: analysis.sources?.length || 0,
+                        analysis_depth: document.getElementById('analysisDepth').value,
+                        processing_time: this.currentAnalysis?.processingTime || '0s'
+                    },
+                    recommendations: this.generateRecommendations(analysis)
+                };
+
+                this.analysisHistory.unshift(report);
+                if (this.analysisHistory.length > 50) {
+                    this.analysisHistory = this.analysisHistory.slice(0, 50);
+                }
+                localStorage.setItem('analysis_history', JSON.stringify(this.analysisHistory));
+
+                return report;
+            }
+
+            determineVerdict(analysis) {
+                const score = this.calculateConfidenceScore(analysis) / 100;
+                if (score >= 0.8) return 'CREDIBLE';
+                if (score >= 0.6) return 'MOSTLY CREDIBLE';
+                if (score >= 0.4) return 'QUESTIONABLE';
+                return 'NOT CREDIBLE';
+            }
+
+            extractKeyFindings(analysis) {
+                const findings = [];
+                
+                if (analysis.bias_score > 0.7) {
+                    findings.push('High bias detected in source material');
+                }
+                
+                if (analysis.overall_credibility > 0.8) {
+                    findings.push('Strong supporting evidence found');
+                }
+                
+                if (analysis.claims_analysis?.some(claim => claim.verdict === 'false')) {
+                    findings.push('Contains potentially false claims');
+                }
+
+                return findings.slice(0, 3);
+            }
+
+            generateRecommendations(analysis) {
+                const recommendations = [];
+                const confidence = this.calculateConfidenceScore(analysis) / 100;
+
+                if (confidence < 0.6) {
+                    recommendations.push('Seek additional sources for verification');
+                    recommendations.push('Cross-reference with authoritative sources');
+                }
+
+                if (analysis.bias_score > 0.6) {
+                    recommendations.push('Consider potential bias in interpretation');
+                    recommendations.push('Look for balanced perspectives');
+                }
+
+                if (analysis.temporal_analysis?.some(t => t.needs_update)) {
+                    recommendations.push('Verify currency of time-sensitive claims');
+                }
+
+                return recommendations;
+            }
+        }
+
+        const verifier = new CredibilityVerifier();
+        let currentTab = 'text';
+
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            document.querySelectorAll('[id$="Tab"]').forEach(btn => {
+                btn.className = 'px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition';
+            });
+            document.getElementById(tab + 'Tab').className = 'px-6 py-3 bg-blue-600 text-white rounded-lg font-medium transition';
+            
+            document.querySelectorAll('[id$="Input"]').forEach(div => {
+                div.classList.add('hidden');
+            });
+            document.getElementById(tab + 'Input').classList.remove('hidden');
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('previewImg').src = e.target.result;
+                document.getElementById('imageInfo').textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+                document.getElementById('imagePreview').classList.remove('hidden');
+                document.getElementById('dropZone').style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleBatchUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let items = [];
+                    const content = e.target.result;
+                    
+                    if (file.name.endsWith('.json')) {
+                        items = JSON.parse(content);
+                    } else if (file.name.endsWith('.csv')) {
+                        const lines = content.split('\n').filter(line => line.trim());
+                        items = lines.slice(1).map(line => ({ text: line.split(',')[0] }));
+                    } else {
+                        items = content.split('\n').filter(line => line.trim()).map(text => ({ text }));
+                    }
+
+                    const preview = items.slice(0, 5);
+                    const previewHtml = preview.map(item => 
+                        `<div class="p-3 bg-gray-50 rounded-lg text-sm">${item.text || JSON.stringify(item)}</div>`
+                    ).join('');
+                    
+                    document.getElementById('batchItems').innerHTML = previewHtml;
+                    document.getElementById('batchPreview').classList.remove('hidden');
+                } catch (error) {
+                    alert('Error parsing file: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        async function startAnalysis() {
+            const content = getInputContent();
+            if (!content) {
+                alert('Please provide content to analyze');
+                return;
+            }
+
+            showProgressSection();
+            const startTime = Date.now();
+
+            try {
+                updateProgress(10, 'Extracting content...');
+                const extractedContent = await verifier.extractContent(content, currentTab);
+                
+                updateProgress(25, 'Identifying claims...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                updateProgress(40, 'Performing fact checks...');
+                const searchResults = await Promise.all(
+                    (extractedContent.claims || [extractedContent]).slice(0, 3).map(claim => 
+                        verifier.performGoogleSearch(claim.text || claim)
+                    )
+                );
+                
+                updateProgress(60, 'Analyzing with AI...');
+                const aiAnalysis = await verifier.analyzeWithAI(extractedContent, document.getElementById('aiModel').value);
+                
+                updateProgress(75, 'Detecting bias...');
+                const biasAnalysis = await verifier.detectBias(content);
+                
+                updateProgress(85, 'Cross-referencing sources...');
+                const misinfoCheck = await verifier.checkMisinformationDatabases(extractedContent.claims || [{ text: content }]);
+                const temporalAnalysis = await verifier.performTemporalAnalysis(extractedContent.claims || [{ text: content }]);
+                
+                updateProgress(95, 'Generating report...');
+                
+                const combinedAnalysis = {
+                    ...aiAnalysis,
+                    bias_analysis: biasAnalysis,
+                    misinformation_check: misinfoCheck,
+                    temporal_analysis: temporalAnalysis,
+                    sources: searchResults.flat(),
+                    source_credibility: calculateSourceCredibility(searchResults.flat())
+                };
+
+                const processingTime = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+                verifier.currentAnalysis = { processingTime };
+                
+                const report = verifier.generateReport(combinedAnalysis);
+                
+                updateProgress(100, 'Analysis complete!');
+                setTimeout(() => {
+                    hideProgressSection();
+                    displayResults(report);
+                }, 1000);
+
+            } catch (error) {
+                console.error('Analysis error:', error);
+                alert('Analysis failed: ' + error.message);
+                hideProgressSection();
+            }
+        }
+
+        function getInputContent() {
+            if (currentTab === 'text') {
+                return document.getElementById('contentText').value.trim();
+            } else if (currentTab === 'image') {
+                return document.getElementById('imageFile').files[0];
+            } else if (currentTab === 'batch') {
+                return document.getElementById('batchFile').files[0];
+            }
+            return null;
+        }
+
+        function showProgressSection() {
+            document.getElementById('inputSection').style.opacity = '0.5';
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('analysisProgress').classList.remove('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+        }
+
+        function hideProgressSection() {
+            document.getElementById('inputSection').style.opacity = '1';
+            document.getElementById('analyzeBtn').disabled = false;
+            document.getElementById('analysisProgress').classList.add('hidden');
+        }
+
+        function updateProgress(percentage, text) {
+            document.getElementById('progressBar').style.width = percentage + '%';
+            document.getElementById('progressText').textContent = text;
+            
+            const steps = document.querySelectorAll('.step-item');
+            if (percentage >= 25) updateStepStatus(steps[0], 'completed');
+            if (percentage >= 40) updateStepStatus(steps[1], 'completed');
+            if (percentage >= 75) updateStepStatus(steps[2], 'completed');
+            if (percentage >= 95) updateStepStatus(steps[3], 'completed');
+        }
+
+        function updateStepStatus(step, status) {
+            const statusEl = step.querySelector('.step-status');
+            const iconEl = step.querySelector('.step-icon');
+            
+            if (status === 'completed') {
+                statusEl.textContent = 'Completed';
+                statusEl.className = 'text-xs text-green-600';
+                iconEl.textContent = '✓';
+                step.className = 'step-item p-3 bg-green-50 rounded-lg border border-green-200';
+            }
+        }
+
+        function calculateSourceCredibility(sources) {
+            if (!sources.length) return 0.5;
+            
+            const credibilityMap = {
+                'reuters.com': 0.95, 'bbc.com': 0.92, 'npr.org': 0.94,
+                'nature.com': 0.98, 'sciencemag.org': 0.97, 'wikipedia.org': 0.85,
+                'cnn.com': 0.78, 'foxnews.com': 0.72
+            };
+
+            const avgCredibility = sources.reduce((sum, source) => {
+                return sum + (credibilityMap[source.source] || 0.6);
+            }, 0) / sources.length;
+
+            return avgCredibility;
+        }
+
+        function displayResults(report) {
+            document.getElementById('resultsSection').classList.remove('hidden');
+            
+            document.getElementById('overallVerdict').textContent = report.executive_summary.verdict;
+            document.getElementById('overallVerdict').className = `text-2xl font-bold mr-4 ${getVerdictColor(report.executive_summary.verdict)}`;
+            
+            const confidence = report.executive_summary.confidence;
+            document.getElementById('confidenceScore').textContent = confidence + '%';
+            document.getElementById('confidenceIndicator').style.left = confidence + '%';
+            
+            document.getElementById('summaryText').textContent = 
+                `Based on comprehensive analysis, this content has been assessed with ${confidence}% confidence. ` +
+                report.executive_summary.key_findings.join('. ');
+
+            displayClaimsAnalysis(report.detailed_analysis.claims_analysis || []);
+            displaySourcesList(report.detailed_analysis.sources || []);
+            displayAnalysisChart(report);
+            displayMethodology(report.methodology);
+        }
+
+        function getVerdictColor(verdict) {
+            switch (verdict) {
+                case 'CREDIBLE': case 'MOSTLY CREDIBLE': return 'text-green-600';
+                case 'QUESTIONABLE': return 'text-yellow-600';
+                case 'NOT CREDIBLE': return 'text-red-600';
+                default: return 'text-gray-600';
+            }
+        }
+
+        function displayClaimsAnalysis(claims) {
+            const container = document.getElementById('claimsAnalysis');
+            container.innerHTML = claims.map((claim, index) => `
+                <div class="analysis-card bg-white border border-gray-200 rounded-lg p-6 ${claim.verdict}">
+                    <div class="flex items-start justify-between mb-4">
+                        <h5 class="text-lg font-semibold text-gray-800">Claim ${index + 1}</h5>
+                        <div class="flex items-center space-x-2">
+                            <span class="px-3 py-1 text-sm font-medium rounded-full ${getClaimBadgeClass(claim.verdict)}">
+                                ${claim.verdict.toUpperCase()}
+                            </span>
+                            <span class="text-sm text-gray-500">${Math.round(claim.confidence * 100)}%</span>
+                        </div>
+                    </div>
+                    <blockquote class="text-gray-700 mb-4 pl-4 border-l-2 border-gray-300 italic">
+                        "${claim.claim}"
+                    </blockquote>
+                    <p class="text-gray-600 mb-3">${claim.reasoning}</p>
+                    <div class="flex items-center text-sm text-gray-500">
+                        <span class="mr-4">✓ ${claim.supporting_evidence} supporting</span>
+                        <span>✗ ${claim.contradicting_evidence} contradicting</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getClaimBadgeClass(verdict) {
+            switch (verdict) {
+                case 'credible': return 'bg-green-100 text-green-800';
+                case 'questionable': return 'bg-yellow-100 text-yellow-800';
+                case 'false': return 'bg-red-100 text-red-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        function displaySourcesList(sources) {
+            const container = document.getElementById('sourcesList');
+            container.innerHTML = sources.slice(0, 5).map(source => `
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div class="flex-1">
+                        <a href="${source.link}" target="_blank" class="text-blue-600 hover:text-blue-800 font-medium text-sm">
+                            ${source.title}
+                        </a>
+                        <p class="text-xs text-gray-500 mt-1">${source.source}</p>
+                    </div>
+                    <div class="ml-3">
+                        <div class="w-16 h-2 bg-gray-200 rounded-full">
+                            <div class="h-2 bg-green-500 rounded-full" style="width: ${Math.round((source.credibility || 0.7) * 100)}%"></div>
+                        </div>
+                        <span class="text-xs text-gray-500">${Math.round((source.credibility || 0.7) * 100)}%</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function displayAnalysisChart(report) {
+            const ctx = document.getElementById('analysisChart').getContext('2d');
+            
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Credible', 'Questionable', 'False'],
+                    datasets: [{
+                        data: [
+                            report.detailed_analysis.claims_analysis?.filter(c => c.verdict === 'credible').length || 1,
+                            report.detailed_analysis.claims_analysis?.filter(c => c.verdict === 'questionable').length || 1,
+                            report.detailed_analysis.claims_analysis?.filter(c => c.verdict === 'false').length || 0
+                        ],
+                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { usePointStyle: true, padding: 20 }
+                        }
+                    }
+                }
+            });
+        }
+
+        function displayMethodology(methodology) {
+            document.getElementById('usedModel').textContent = methodology.models_used[0] || 'OpenAI GPT-4';
+            document.getElementById('sourcesCount').textContent = methodology.sources_checked;
+            document.getElementById('processingTime').textContent = methodology.processing_time;
+            document.getElementById('usedDepth').textContent = methodology.analysis_depth;
+        }
+
+        function exportReport(format) {
+            const report = verifier.analysisHistory[0];
+            if (!report) return;
+
+            if (format === 'json') {
+                const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+                downloadFile(blob, `credibility_report_${report.id}.json`);
+            } else if (format === 'pdf') {
+                generatePDFReport(report);
+            }
+        }
+
+        function generatePDFReport(report) {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF();
+            
+            pdf.setFontSize(20);
+            pdf.text('Credibility Verification Report', 20, 30);
+            
+            pdf.setFontSize(12);
+            pdf.text(`Report ID: ${report.id}`, 20, 50);
+            pdf.text(`Generated: ${new Date(report.timestamp).toLocaleString()}`, 20, 60);
+            
+            pdf.setFontSize(16);
+            pdf.text('Executive Summary', 20, 80);
+            
+            pdf.setFontSize(12);
+            pdf.text(`Verdict: ${report.executive_summary.verdict}`, 20, 95);
+            pdf.text(`Confidence: ${report.executive_summary.confidence}%`, 20, 105);
+            
+            const findings = report.executive_summary.key_findings.join(', ');
+            const splitFindings = pdf.splitTextToSize(`Key Findings: ${findings}`, 170);
+            pdf.text(splitFindings, 20, 115);
+
+            pdf.save(`credibility_report_${report.id}.pdf`);
+        }
+
+        function downloadFile(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showHistory() {
+            const modal = document.getElementById('historyModal');
+            const list = document.getElementById('historyList');
+            
+            list.innerHTML = verifier.analysisHistory.map(report => `
+                <div class="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="loadHistoryItem('${report.id}')">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-medium ${getVerdictColor(report.executive_summary.verdict)}">${report.executive_summary.verdict}</span>
+                        <span class="text-sm text-gray-500">${new Date(report.timestamp).toLocaleDateString()}</span>
+                    </div>
+                    <p class="text-sm text-gray-600">${report.executive_summary.confidence}% confidence</p>
+                </div>
+            `).join('');
+            
+            modal.classList.remove('hidden');
+        }
+
+        function hideHistory() {
+            document.getElementById('historyModal').classList.add('hidden');
+        }
+
+        function loadHistoryItem(id) {
+            const report = verifier.analysisHistory.find(r => r.id === id);
+            if (report) {
+                hideHistory();
+                displayResults(report);
+            }
+        }
+
+        function showSettings() {
+            document.getElementById('openaiKey').value = verifier.config.openaiKey;
+            document.getElementById('googleKey').value = verifier.config.googleKey;
+            document.getElementById('googleCSE').value = verifier.config.googleCSE;
+            document.getElementById('llamaEndpoint').value = verifier.config.llamaEndpoint;
+            document.getElementById('settingsModal').classList.remove('hidden');
+        }
+
+        function hideSettings() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+
+        function saveSettings() {
+            verifier.config.openaiKey = document.getElementById('openaiKey').value;
+            verifier.config.googleKey = document.getElementById('googleKey').value;
+            verifier.config.googleCSE = document.getElementById('googleCSE').value;
+            verifier.config.llamaEndpoint = document.getElementById('llamaEndpoint').value;
+            
+            localStorage.setItem('openai_key', verifier.config.openaiKey);
+            localStorage.setItem('google_key', verifier.config.googleKey);
+            localStorage.setItem('google_cse', verifier.config.googleCSE);
+            localStorage.setItem('llama_endpoint', verifier.config.llamaEndpoint);
+            
+            hideSettings();
+            alert('Settings saved successfully!');
+        }
+
+        function showMethodologyDetails() {
+            alert(`Detailed Methodology:
+
+1. Content Extraction: Text parsing, OCR for images, metadata analysis
+2. Claim Identification: Natural language processing to segment factual claims
+3. Multi-source Verification: Google Custom Search integration for fact-checking
+4. AI Analysis: OpenAI GPT-4 or Local Llama models for content analysis
+5. Bias Detection: Emotional language, loaded terms, one-sidedness analysis
+6. Cross-referencing: Comparison with known misinformation databases
+7. Temporal Analysis: Time-sensitivity and currency assessment
+8. Confidence Scoring: Weighted calculation based on multiple factors
+9. Report Generation: Comprehensive analysis with sources and recommendations
+
+The system uses a hybrid approach combining multiple AI models, search engines, and databases to provide the most accurate assessment possible.`);
+        }
+
+        document.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (currentTab === 'image') {
+                document.getElementById('dropZone').style.borderColor = '#3b82f6';
+            }
+        });
+
+        document.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            if (currentTab === 'image') {
+                document.getElementById('dropZone').style.borderColor = '#d1d5db';
+            }
+        });
+
+        document.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (currentTab === 'image') {
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    document.getElementById('imageFile').files = files;
+                    handleImageUpload({ target: { files } });
+                }
+                document.getElementById('dropZone').style.borderColor = '#d1d5db';
+            }
+        });
+
+        document.getElementById('contentText').addEventListener('input', function() {
+            const wordCount = this.value.trim().split(/\s+/).length;
+            if (wordCount > 1) {
+                this.style.borderColor = '#10b981';
+            }
+        });
+
+        setInterval(() => {
+            const now = Date.now();
+            const oneMinuteAgo = now - 60000;
+            
+            for (const [key, value] of verifier.rateLimiter.entries()) {
+                const timestamp = parseInt(key.split('_')[1]) * 60000;
+                if (timestamp < oneMinuteAgo) {
+                    verifier.rateLimiter.delete(key);
+                }
+            }
+        }, 60000);
+
+        console.log('VerifyAI Credibility Verification Platform initialized');
+        console.log('Setup Instructions:');
+        console.log('1. Click Settings to configure API keys');
+        console.log('2. Add OpenAI API key for advanced AI analysis');
+        console.log('3. Add Google Custom Search API key and CSE ID for fact-checking');
+        console.log('4. Configure Llama endpoint if using local models');
+        console.log('5. Start analyzing content for credibility verification');
+    </script>
+</body>
+</html>

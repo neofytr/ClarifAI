@@ -73,7 +73,7 @@ class LLMManager:
         self.openai_model = OPENAI_MODEL
         self.ollama_model = OLLAMA_MODEL
     
-    async def generate_response(self, prompt: str, max_tokens: int = 1500, temperature: float = 0.2) -> str:
+    async def generate_response(self, prompt: str, max_tokens: int = 15000, temperature: float = 0.2) -> str:
         if self.provider == "openai":
             return await self._openai_generate(prompt, max_tokens, temperature)
         else:
@@ -354,21 +354,39 @@ class EnhancedSearchEngine:
         
         # Stage 1: Content Analysis and Claim Extraction
         claims_analysis = await self._extract_and_analyze_claims(content)
+        print("\n\nclaim analysis\n")
+        print(claims_analysis)
+        print("\n\n")
         
         # Stage 2: Strategic Query Generation with Multiple Approaches
         query_strategies = await self._generate_strategic_queries(content, claims_analysis)
+        print("\n\nquery strategies\n")
+        print(query_strategies)
+        print("\n\n")
         
         # Stage 3: Parallel Multi-Modal Search
         search_results = await self._execute_parallel_searches(query_strategies)
+        print("\n\nsearch results\n")
+        print(search_results)
+        print("\n\n")
         
         # Stage 4: Advanced Result Processing and Scoring
-        processed_results = await self._advanced_result_processing(search_results, content, claims_analysis)
+        processed_results = await self._advanced_result_processing_one(search_results, content, claims_analysis)
+        print("\n\nprocessed results\n")
+        print(processed_results)
+        print("\n\n")
         
         # Stage 5: Context-Aware Source Selection
         final_sources = await self._context_aware_source_selection(processed_results, claims_analysis)
+        print("\n\nfinal sources\n")
+        print(final_sources)
+        print("\n\n")
         
         # Stage 6: Calculate comprehensive confidence metrics
         confidence_metrics = self._calculate_search_confidence(final_sources, search_results, query_strategies)
+        print("\n\nconfidence metrics\n")
+        print(confidence_metrics)
+        print("\n\n")
         
         return {
         "claims_analysis": claims_analysis,
@@ -450,7 +468,7 @@ class EnhancedSearchEngine:
         ]
         return any(fc_domain in domain for fc_domain in fact_check_domains)
 
-    async def _advanced_result_processing(self, search_results: List[Dict[str, Any]], content: str, claims_analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _advanced_result_processing_one(self, search_results: List[Dict[str, Any]], content: str, claims_analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Process and enhance search results with additional analysis"""
         if not search_results:
             return []
@@ -540,44 +558,6 @@ class EnhancedSearchEngine:
 
         return composite_score
 
-    async def _context_aware_source_selection(self, processed_results: List[Dict[str, Any]], claims_analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Select the most relevant and credible sources based on context"""
-        if not processed_results:
-            return []
-
-        # Filter out low-quality results
-        filtered_results = [
-            result for result in processed_results
-            if result.get("credibility_score", 0) > 0.3 and result.get("composite_score", 0) > 0.1
-        ]
-
-        if not filtered_results:
-            # If filtering removes everything, keep top results from original
-            filtered_results = processed_results[:10]
-
-        # Group by search strategy to ensure diversity
-        strategy_groups = {}
-        for result in filtered_results:
-            strategy = result.get("search_strategy", "unknown")
-            if strategy not in strategy_groups:
-                strategy_groups[strategy] = []
-            strategy_groups[strategy].append(result)
-
-        # Select top results from each strategy
-        final_sources = []
-        max_per_strategy = 3
-
-        for strategy, results in strategy_groups.items():
-            # Sort by composite score and take top results
-            sorted_results = sorted(results, key=lambda x: x.get("composite_score", 0), reverse=True)
-            final_sources.extend(sorted_results[:max_per_strategy])
-
-        # Sort final sources by composite score and limit total
-        final_sources.sort(key=lambda x: x.get("composite_score", 0), reverse=True)
-
-        # Return top 15 sources to avoid overwhelming the analysis
-        return final_sources[:15]
-
     async def _extract_and_analyze_claims(self, content: str) -> Dict[str, Any]:
         """Extract and categorize factual claims from content"""
         claims_prompt = f"""
@@ -606,7 +586,7 @@ class EnhancedSearchEngine:
         """
         
         try:
-            response = await self.llm_manager.generate_response(claims_prompt, max_tokens=800, temperature=0.1)
+            response = await self.llm_manager.generate_response(claims_prompt, max_tokens=15000, temperature=0.1)
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
                 claims_data = json.loads(json_match.group())
@@ -688,7 +668,7 @@ class EnhancedSearchEngine:
     async def _generate_query_set(self, prompt: str, strategy: str) -> List[str]:
         """Generate a set of queries for a specific strategy"""
         try:
-            response = await self.llm_manager.generate_response(prompt, max_tokens=300, temperature=0.3)
+            response = await self.llm_manager.generate_response(prompt, max_tokens=15000, temperature=0.3)
             queries = [q.strip() for q in response.split('\n') if q.strip() and len(q.strip()) > 10]
             return queries[:5]  # Limit to 5 queries per strategy
         except Exception as e:
@@ -701,6 +681,10 @@ class EnhancedSearchEngine:
         for strategy, queries in query_strategies.items():
             for query in queries:
                 all_queries.append({"query": query, "strategy": strategy})
+                
+        print("\n\nall queries")
+        print(all_queries)
+        print("\n\n")
         
         # Rate limiting: batch searches
         batch_size = 8
@@ -747,7 +731,7 @@ class EnhancedSearchEngine:
                 if response.status == 200:
                     data = await response.json()
                     results = []
-                    
+                                        
                     for item in data.get('items', []):
                         result = await self._create_enhanced_result_object(item, query, strategy)
                         if result:
@@ -1184,7 +1168,7 @@ class EnhancedSearchEngine:
         
         return max(0.0, min(1.0, score))
 
-    async def _advanced_result_processing(self, search_results: List[Dict[str, Any]], 
+    async def _advanced_result_processing_two(self, search_results: List[Dict[str, Any]], 
                                         content: str, claims_analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Advanced processing with deduplication, clustering, and enhanced scoring"""
         if not search_results:
@@ -1269,7 +1253,7 @@ class EnhancedSearchEngine:
         """
         
         try:
-            response = await self.llm_manager.generate_response(selection_prompt, max_tokens=400, temperature=0.1)
+            response = await self.llm_manager.generate_response(selection_prompt, max_tokens=15000, temperature=0.1)
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             
             if json_match:
@@ -1500,7 +1484,6 @@ class AdvancedFactChecker:
         "stage": "pipeline_execution"
     }
            
-        print(analysis_result)
         return analysis_result
 
     async def _analyze_content_metadata(self, content: str) -> Dict[str, Any]:
@@ -1737,7 +1720,7 @@ class AdvancedFactChecker:
        """
        
        try:
-           response = await self.llm_manager.generate_response(evidence_prompt, max_tokens=1200, temperature=0.1)
+           response = await self.llm_manager.generate_response(evidence_prompt, max_tokens=15000, temperature=0.1)
            json_match = re.search(r'\{.*\}', response, re.DOTALL)
            
            if json_match:
@@ -1838,7 +1821,7 @@ class AdvancedFactChecker:
        """
        
        try:
-           response = await self.llm_manager.generate_response(credibility_prompt, max_tokens=1000, temperature=0.1)
+           response = await self.llm_manager.generate_response(credibility_prompt, max_tokens=15000, temperature=0.1)
            json_match = re.search(r'\{.*\}', response, re.DOTALL)
            
            if json_match:
@@ -1936,7 +1919,7 @@ class AdvancedFactChecker:
        """
        
        try:
-           response = await self.llm_manager.generate_response(domain_prompt, max_tokens=800, temperature=0.1)
+           response = await self.llm_manager.generate_response(domain_prompt, max_tokens=15000, temperature=0.1)
            json_match = re.search(r'\{.*\}', response, re.DOTALL)
            
            if json_match:
@@ -1991,7 +1974,7 @@ class AdvancedFactChecker:
 
        Generate a professional fact-checking verdict:
 
-       Return JSON:
+       Please output the fact-check result strictly as a valid JSON object. Do not include any explanation, prefix, or suffix. The structure should match the format described below:
        {{
            "verdict": "TRUE|MOSTLY_TRUE|MIXED|MOSTLY_FALSE|FALSE|UNVERIFIABLE",
            "confidence_score": 0.85,
@@ -2026,7 +2009,7 @@ class AdvancedFactChecker:
        """
        
        try:
-           response = await self.llm_manager.generate_response(verdict_prompt, max_tokens=1200, temperature=0.1)
+           response = await self.llm_manager.generate_response(verdict_prompt, max_tokens=15000, temperature=0.1)
            json_match = re.search(r'\{.*\}', response, re.DOTALL)
            
            if json_match:
@@ -2042,7 +2025,7 @@ class AdvancedFactChecker:
                return verdict_data
                
        except Exception as e:
-           print(f"Verdict generation error: {e}")
+           print(f"Verdict generation error:daft punk is a band from the 1950s {e}")
        
        return self._fallback_verdict_generation(credibility_assessment, evidence_analysis)
 
@@ -2078,7 +2061,6 @@ class AdvancedFactChecker:
                f"Evidence strength: {evidence_strength}",
                "Analysis completed with limited expert input"
            ],
-           "analysis_summary": analysis_summary,
            "evidence_summary": {
                "total_evidence_items": len(credibility_assessment.get('key_strengths', [])) + len(credibility_assessment.get('key_weaknesses', [])),
                "supporting_evidence_count": len(credibility_assessment.get('key_strengths', [])),
@@ -2179,9 +2161,11 @@ class AdvancedFactChecker:
             }}
         }}
         """
-
+        
         try:
-            response = await self.llm_manager.generate_response(summary_prompt, max_tokens=2000, temperature=0.2)
+            response = await self.llm_manager.generate_response(summary_prompt, max_tokens=15000, temperature=0.2)
+            print("\n\nsummary response")
+            print(response,"\n\n")
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
 
             if json_match:
@@ -3202,12 +3186,7 @@ async def read_root():
     body: formData
 });
         const data = await response.json();
-        
-        if (data.error) {
-        console.log("ERROR DETECTED - calling displayError");
-        displayError(`${data.error.type}: ${data.error.message}`);
-        return;
-    }
+        console.log(data);
         
         if (response.ok) {
             displayResults(data);
@@ -3341,12 +3320,6 @@ function escapeHtml(text) {
 function displayResults(data) {
     console.log("Full data received:", data); // Debug log
     
-    // Handle error case
-    if (data.error) {
-        displayError(`${data.error.type}: ${data.error.message}`);
-        return;
-    }
-    
     // Extract data from complex nested structure with better fallbacks
     const finalVerdict = data.final_verdict || {};
     const evidenceAnalysis = data.evidence_analysis || {};
@@ -3394,6 +3367,8 @@ function displayResults(data) {
     } else if (finalVerdict.conclusion) {
         summary = finalVerdict.conclusion;
     }
+    
+    console.log("Summary:", summary); // Debug log
     
     // Extract key findings from multiple sources
     const keyFindings = [];
@@ -3538,9 +3513,46 @@ function displayResults(data) {
         
         <div class="results-content">
             <div class="result-section">
-                <h3 class="section-title">Analysis Summary</h3>
-                <p class="section-content">${summary}</p>
-            </div>
+	<h3 class="section-title">Analysis Summary</h3>
+
+	<div class="section-sub"><strong>Executive Summary:</strong><p>${summary.analysis_summary.executive_summary}</p></div>
+	<div class="section-sub"><strong>Investigation Scope:</strong><p>${summary.analysis_summary.investigation_scope}</p></div>
+	<div class="section-sub"><strong>Methodology Explanation:</strong><p>${summary.analysis_summary.methodology_explanation}</p></div>
+	<div class="section-sub"><strong>Source Analysis:</strong><p>${summary.analysis_summary.source_analysis}</p></div>
+	<div class="section-sub"><strong>Evidence Evaluation:</strong><p>${summary.analysis_summary.evidence_evaluation}</p></div>
+	<div class="section-sub"><strong>Reasoning Process:</strong><p>${summary.analysis_summary.reasoning_process}</p></div>
+	<div class="section-sub"><strong>Confidence Assessment:</strong><p>${summary.analysis_summary.confidence_assessment}</p></div>
+	<div class="section-sub"><strong>Limitations and Caveats:</strong><p>${summary.analysis_summary.limitations_and_caveats}</p></div>
+	<div class="section-sub"><strong>Practical Implications:</strong><p>${summary.analysis_summary.practical_implications}</p></div>
+	<div class="section-sub"><strong>Additional Context:</strong><p>${summary.analysis_summary.additional_context}</p></div>
+</div>
+console.log(
+<div class="result-section">
+	<h3 class="section-title">User Guidance</h3>
+
+	<div class="section-sub">
+		<strong>Key Takeaways:</strong>
+		<ul>
+			${summary.user_guidance.key_takeaways.map(t => `<li>${t}</li>`).join('')}
+		</ul>
+	</div>
+
+	<div class="section-sub">
+		<strong>Recommended Actions:</strong>
+		<ul>
+			${summary.user_guidance.recommended_actions.map(a => `<li>${a}</li>`).join('')}
+		</ul>
+	</div>
+
+	<div class="section-sub">
+		<strong>Further Reading Suggestions:</strong>
+		<ul>
+			${summary.user_guidance.further_reading_suggestions.map(s => `<li>${s}</li>`).join('')}
+		</ul>
+	</div>
+</div>
+
+
             
             ${keyFindings.length > 0 ? `
                 <div class="result-section">
@@ -3738,7 +3750,6 @@ async def fact_check_endpoint(
             except Exception:
                 raise HTTPException(status_code=400, detail="Invalid image file")
         
-        print("in api")
         result = await fact_checker.comprehensive_fact_check_pipeline(content, image_obj)
         
         return result
