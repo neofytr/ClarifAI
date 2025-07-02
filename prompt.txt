@@ -1,0 +1,2 @@
+the image thing is retarded and doesn't work properly; also please greatly enhance the search engine thing to make it better and more accurate; make it heavily reliant on the llm with the search results first passed to check if they are relevant in determining the given thing and then passed to the model; also use ideas like this to enhance the pipeline and make it better; also improve the UI; make it minimalistic; it shouldnt look ai generated; use only small letter comments
+
