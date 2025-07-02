@@ -1,4 +1,4 @@
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+KEYAI = os.getenv("OPENAI_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
 
@@ -38,7 +38,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-openai.api_key = OPENAI_API_KEY
+openai.api_key = KEYAI
 
 class EnhancedFactChecker:
     def __init__(self):

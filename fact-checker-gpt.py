@@ -1,6 +1,6 @@
 import os
 
-AIKEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
 
@@ -48,19 +48,18 @@ except LookupError:
     nltk.download('punkt', quiet=True)
     nltk.download('stopwords', quiet=True)
 
-from fastapi.middleware.cors import CORSMiddleware
+app = FastAPI(title="ValiData", description="Advanced, reliable, and fast fact-checking with AI")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
 if LLM_PROVIDER == "openai":
-    openai_client = OpenAI(api_key=AIKEY)
+    openai_client = OpenAI(api_key=OPENAI_API_KEY)
 else:
     openai_client = None
 
@@ -2614,10 +2613,11 @@ async def read_root():
     resultsPanel.style.display = 'none';
     
     try {
-        const response = await fetch('/fact-check', {
-            method: 'POST',
-            body: formData
-        });
+        const response = await fetch('http://localhost:8000/fact-check', {
+    method: 'POST',
+    body: formData
+});
+
         
         const data = await response.json();
         
