@@ -105,7 +105,7 @@ class LLMManager:
                             'num_predict': max_tokens
                         }
                     },
-                    timeout=aiohttp.ClientTimeout(total=120)
+                    timeout=aiohttp.ClientTimeout(total=12000)
                 ) as response:
                     if response.status == 200:
                         result = await response.json()
@@ -1322,24 +1322,6 @@ class EnhancedSearchEngine:
             "content_hash": hashlib.md5(content.encode()).hexdigest()[:16]
         }
 
-    def _calculate_search_confidence(self, sources: List[Dict[str, Any]]) -> Dict[str, float]:
-        """Calculate confidence metrics for the search results"""
-        if not sources:
-            return {"overall_confidence": 0.0}
-        
-        avg_credibility = sum(s.get('credibility_score', {}).get('overall_score', 0) for s in sources) / len(sources)
-        source_diversity = len(set(s.get('domain', '') for s in sources)) / len(sources)
-        fact_check_ratio = len([s for s in sources if s.get('credibility_score', {}).get('source_type') == 'fact_check']) / len(sources)
-        
-        overall_confidence = (avg_credibility * 0.5) + (source_diversity * 0.3) + (fact_check_ratio * 0.2)
-        
-        return {
-            "overall_confidence": round(overall_confidence, 3),
-            "average_credibility": round(avg_credibility, 3),
-            "source_diversity": round(source_diversity, 3),
-            "fact_check_ratio": round(fact_check_ratio, 3)
-        }
-
 
 class AdvancedFactChecker:
     def __init__(self):
@@ -1401,7 +1383,10 @@ class AdvancedFactChecker:
                 "enhanced_content_length": len(enhanced_content["final_content"]),
                 "image_processed": enhanced_content["image_processed"]
             } 
-             
+            
+            print("\n\n")
+            print("stage 1 -> ")
+            print(analysis_result["pipeline_stages"]["content_preprocessing"])
             
             if enhanced_content["image_analysis"]:
                 analysis_result["image_analysis"] = enhanced_content["image_analysis"]
@@ -1415,6 +1400,10 @@ class AdvancedFactChecker:
                 "duration": round(time.time() - stage_start, 2),
                 **search_pipeline_result["confidence_metrics"]
             }
+            
+            print("\n\n")
+            print("stage 2 -> ")
+            print(analysis_result["pipeline_stages"]["search_pipeline"])
             
             # Stage 3: Multi-Perspective Evidence Analysis
             stage_start = time.time()
@@ -1436,7 +1425,10 @@ class AdvancedFactChecker:
                 "perspectives_analyzed": perspectives_count,
                 "evidence_strength": evidence_analysis.get("overall_evidence_strength", "unknown")
             }
-        
+            
+            print("\n\n")
+            print("stage 3 -> ")
+            print(analysis_result["pipeline_stages"]["evidence_analysis"])
             
             # Stage 4: Advanced Credibility Assessment
             stage_start = time.time()
@@ -1451,6 +1443,10 @@ class AdvancedFactChecker:
                "overall_credibility": credibility_assessment["overall_credibility_score"]
            }
             
+            print("\n\n")
+            print("stage 4 -> ")
+            print(analysis_result["pipeline_stages"]["credibility_assessment"])
+            
            # Stage 5: Expert Domain Analysis
             stage_start = time.time()
             domain_analysis = await self._expert_domain_analysis(
@@ -1463,6 +1459,10 @@ class AdvancedFactChecker:
                "domains_analyzed": len(domain_analysis["domain_assessments"]),
                "expert_consensus_level": domain_analysis["consensus_metrics"]["overall_consensus"]
            }
+            
+            print("\n\n")
+            print("stage 5 -> ")
+            print(analysis_result["pipeline_stages"]["domain_analysis"])
             
            # Stage 6: Comprehensive Verdict Generation
             stage_start = time.time()
@@ -2032,6 +2032,12 @@ class AdvancedFactChecker:
            if json_match:
                verdict_data = json.loads(json_match.group())
                verdict_data["verdict_timestamp"] = datetime.now().isoformat()
+               # Generate comprehensive analysis summary
+               analysis_summary = await self._generate_analysis_summary(
+    content, search_results, evidence_analysis, credibility_assessment, 
+    domain_analysis, verdict_data
+)
+               verdict_data["analysis_summary"] = analysis_summary
                verdict_data["analysis_completeness"] = self._calculate_verdict_completeness(verdict_data)
                return verdict_data
                
@@ -2061,7 +2067,8 @@ class AdvancedFactChecker:
            verdict = "MOSTLY_FALSE"
        else:
            verdict = "UNVERIFIABLE"
-       
+           
+       # Generate fallback analysis summary       
        return {
            "verdict": verdict,
            "confidence_score": overall_credibility,
@@ -2071,6 +2078,7 @@ class AdvancedFactChecker:
                f"Evidence strength: {evidence_strength}",
                "Analysis completed with limited expert input"
            ],
+           "analysis_summary": analysis_summary,
            "evidence_summary": {
                "total_evidence_items": len(credibility_assessment.get('key_strengths', [])) + len(credibility_assessment.get('key_weaknesses', [])),
                "supporting_evidence_count": len(credibility_assessment.get('key_strengths', [])),
@@ -2095,8 +2103,211 @@ class AdvancedFactChecker:
                "methodological_rigor": 0.5
            },
            "verdict_timestamp": datetime.now().isoformat(),
-           "analysis_completeness": 0.7
+           "analysis_completeness": 0.7,
+           "analysis_summary": "No Summary, LLM Failure"
        }
+    
+    async def _generate_analysis_summary(self, content: str, search_results: Dict[str, Any],
+                                       evidence_analysis: Dict[str, Any], credibility_assessment: Dict[str, Any],
+                                       domain_analysis: Dict[str, Any], final_verdict: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate comprehensive analysis summary explaining the fact-checking process and findings"""
+
+        # Prepare detailed context for the summary
+        sources_info = self._prepare_sources_summary(search_results.get('final_sources', []))
+        process_metrics = self._calculate_process_metrics(search_results, evidence_analysis, credibility_assessment)
+
+        summary_prompt = f"""
+        Create a comprehensive analysis summary for this fact-checking investigation. This summary should explain the entire process, findings, and methodology to help users understand how we reached our conclusion.
+
+        ORIGINAL CONTENT ANALYZED: "{content[:500]}..."
+
+        FINAL VERDICT: {final_verdict.get('verdict', 'UNKNOWN')} (Confidence: {final_verdict.get('confidence_score', 0):.1%})
+
+        PROCESS OVERVIEW:
+        - Sources Analyzed: {len(search_results.get('final_sources', []))}
+        - Search Strategies Used: {len(search_results.get('search_strategies', []))}
+        - Evidence Strength: {evidence_analysis.get('overall_evidence_strength', 'unknown')}
+        - Overall Credibility Score: {credibility_assessment.get('overall_credibility_score', 0):.2f}
+        - Expert Consensus Level: {domain_analysis.get('consensus_metrics', {}).get('overall_consensus', 0):.2f}
+
+        KEY SOURCES ANALYZED:
+        {sources_info}
+
+        EVIDENCE BREAKDOWN:
+        Supporting Evidence: {evidence_analysis.get('perspective_analyses', {}).get('supporting_evidence', {}).get('strength', 'unknown')}
+        Contradicting Evidence: {evidence_analysis.get('perspective_analyses', {}).get('contradicting_evidence', {}).get('strength', 'unknown')}
+        Expert Consensus: {evidence_analysis.get('perspective_analyses', {}).get('expert_consensus', {}).get('consensus_level', 'unknown')}
+
+        CREDIBILITY DIMENSIONS:
+        {self._format_credibility_dimensions(credibility_assessment.get('dimensional_scores', {}))}
+
+        Create a detailed, professional analysis summary that explains:
+        1. What we investigated and why
+        2. Our methodology and approach
+        3. Key sources and their reliability
+        4. Evidence found (both supporting and contradicting)
+        5. How we reached our conclusion
+        6. Limitations and areas of uncertainty
+        7. Practical implications for the user
+
+        Write in a clear, accessible style that educates the user about the fact-checking process while being thorough and authoritative.
+
+        Return JSON:
+        {{
+            "analysis_summary": {{
+                "executive_summary": "2-3 sentence overview of findings and conclusion",
+                "investigation_scope": "What we investigated and the scope of our analysis",
+                "methodology_explanation": "How we conducted the fact-check (search strategies, evidence evaluation, etc.)",
+                "source_analysis": "Detailed explanation of sources used, their credibility, and why they were selected",
+                "evidence_evaluation": "Comprehensive breakdown of evidence found, including supporting and contradicting information",
+                "reasoning_process": "Step-by-step explanation of how we analyzed the evidence and reached our conclusion",
+                "confidence_assessment": "Why we have this level of confidence in our verdict and what factors influenced it",
+                "limitations_and_caveats": "What we couldn't verify, areas of uncertainty, and analysis limitations",
+                "practical_implications": "What this means for the user and how they should interpret the information",
+                "additional_context": "Any relevant background information or context that helps understand the topic"
+            }},
+            "summary_metrics": {{
+                "word_count": 850,
+                "readability_level": "professional",
+                "completeness_score": 0.95,
+                "key_points_covered": 9
+            }},
+            "user_guidance": {{
+                "key_takeaways": ["takeaway1", "takeaway2", "takeaway3"],
+                "recommended_actions": ["action1", "action2"],
+                "further_reading_suggestions": ["suggestion1", "suggestion2"]
+            }}
+        }}
+        """
+
+        try:
+            response = await self.llm_manager.generate_response(summary_prompt, max_tokens=2000, temperature=0.2)
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+
+            if json_match:
+                summary_data = json.loads(json_match.group())
+                summary_data["generation_timestamp"] = datetime.now().isoformat()
+                summary_data["process_metrics"] = process_metrics
+                return summary_data
+
+        except Exception as e:
+            print(f"Analysis summary generation error: {e}")
+
+        return self._fallback_analysis_summary(content, final_verdict, process_metrics)
+
+    def _prepare_sources_summary(self, sources: List[Dict[str, Any]]) -> str:
+        """Prepare a formatted summary of sources for the analysis"""
+        if not sources:
+            return "No sources available"
+
+        # Group sources by type and credibility
+        high_cred_sources = [s for s in sources if s.get('credibility_score', {}).get('overall_score', 0) > 0.8]
+        medium_cred_sources = [s for s in sources if 0.5 < s.get('credibility_score', {}).get('overall_score', 0) <= 0.8]
+        low_cred_sources = [s for s in sources if s.get('credibility_score', {}).get('overall_score', 0) <= 0.5]
+
+        source_types = {}
+        for source in sources:
+            source_type = source.get('credibility_score', {}).get('source_type', 'unknown')
+            if source_type not in source_types:
+                source_types[source_type] = 0
+            source_types[source_type] += 1
+
+        summary_parts = []
+        summary_parts.append(f"High Credibility Sources: {len(high_cred_sources)}")
+        summary_parts.append(f"Medium Credibility Sources: {len(medium_cred_sources)}")
+        summary_parts.append(f"Lower Credibility Sources: {len(low_cred_sources)}")
+        summary_parts.append(f"Source Types: {', '.join([f'{k}: {v}' for k, v in source_types.items()])}")
+
+        # Add top 3 highest credibility sources
+        top_sources = sorted(sources, key=lambda x: x.get('credibility_score', {}).get('overall_score', 0), reverse=True)[:3]
+        if top_sources:
+            summary_parts.append("Top Sources:")
+            for i, source in enumerate(top_sources, 1):
+                domain = source.get('domain', 'unknown')
+                score = source.get('credibility_score', {}).get('overall_score', 0)
+                summary_parts.append(f"  {i}. {domain} (Credibility: {score:.2f})")
+
+        return "\n".join(summary_parts)
+
+    def _calculate_process_metrics(self, search_results: Dict[str, Any], evidence_analysis: Dict[str, Any], 
+                                  credibility_assessment: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate metrics about the fact-checking process"""
+        return {
+            "search_efficiency": {
+                "strategies_used": len(search_results.get('search_strategies', [])),
+                "sources_found": len(search_results.get('final_sources', [])),
+                "search_confidence": search_results.get('confidence_metrics', {}).get('overall_confidence', 0)
+            },
+            "evidence_metrics": {
+                "evidence_strength": evidence_analysis.get('overall_evidence_strength', 'unknown'),
+                "confidence_level": evidence_analysis.get('confidence_level', 0),
+                "evidence_gaps": len(evidence_analysis.get('evidence_gaps', []))
+            },
+            "credibility_metrics": {
+                "overall_score": credibility_assessment.get('overall_credibility_score', 0),
+                "dimensions_analyzed": len(credibility_assessment.get('dimensional_scores', {})),
+                "credibility_level": credibility_assessment.get('credibility_level', 'unknown')
+            }
+        }
+
+    def _format_credibility_dimensions(self, dimensional_scores: Dict[str, Any]) -> str:
+        """Format credibility dimensions for the summary"""
+        if not dimensional_scores:
+            return "No credibility dimensions available"
+
+        formatted = []
+        for dimension, data in dimensional_scores.items():
+            if isinstance(data, dict):
+                score = data.get('score', 0)
+                formatted.append(f"- {dimension.replace('_', ' ').title()}: {score:.2f}")
+            else:
+                formatted.append(f"- {dimension.replace('_', ' ').title()}: {data}")
+
+        return "\n".join(formatted)
+
+    def _fallback_analysis_summary(self, content: str, final_verdict: Dict[str, Any], 
+                                  process_metrics: Dict[str, Any]) -> Dict[str, Any]:
+        """Fallback analysis summary when LLM generation fails"""
+        verdict = final_verdict.get('verdict', 'UNVERIFIABLE')
+        confidence = final_verdict.get('confidence_score', 0.5)
+
+        return {
+            "analysis_summary": {
+                "executive_summary": f"Our fact-checking analysis resulted in a verdict of {verdict} with {confidence:.1%} confidence. This conclusion is based on automated analysis of available sources and evidence.",
+                "investigation_scope": f"We analyzed the claim: '{content[:200]}...' using our comprehensive fact-checking pipeline.",
+                "methodology_explanation": "Our analysis employed multi-stage search strategies, evidence evaluation from multiple perspectives, credibility assessment, and expert domain analysis.",
+                "source_analysis": f"We analyzed {process_metrics.get('search_efficiency', {}).get('sources_found', 0)} sources with varying credibility levels to build our evidence base.",
+                "evidence_evaluation": f"Evidence strength was assessed as {process_metrics.get('evidence_metrics', {}).get('evidence_strength', 'unknown')} based on supporting and contradicting information found.",
+                "reasoning_process": "Our reasoning combined source credibility scores, evidence consistency, and expert consensus to reach the final verdict.",
+                "confidence_assessment": f"Our confidence level of {confidence:.1%} reflects the quality and consistency of available evidence and sources.",
+                "limitations_and_caveats": "This analysis was conducted through automated processing and may benefit from additional expert review and primary source verification.",
+                "practical_implications": f"Users should interpret this {verdict} verdict as our best assessment based on currently available evidence, but should consider seeking additional verification for critical decisions.",
+                "additional_context": "The analysis was conducted using our comprehensive fact-checking pipeline, which evaluates multiple dimensions of credibility and evidence."
+            },
+            "summary_metrics": {
+                "word_count": 250,
+                "readability_level": "professional",
+                "completeness_score": 0.7,
+                "key_points_covered": 10
+            },
+            "user_guidance": {
+                "key_takeaways": [
+                    f"Verdict: {verdict}",
+                    f"Confidence: {confidence:.1%}",
+                    "Based on comprehensive automated analysis"
+                ],
+                "recommended_actions": [
+                    "Consider seeking additional expert verification",
+                    "Review primary sources when possible"
+                ],
+                "further_reading_suggestions": [
+                    "Consult domain experts for specialized topics",
+                    "Check official sources for authoritative information"
+                ]
+            },
+            "generation_timestamp": datetime.now().isoformat(),
+            "process_metrics": process_metrics
+        }
 
     def _calculate_analysis_completeness(self, analysis_result: Dict[str, Any]) -> float:
        """Calculate overall analysis completeness score"""
@@ -3435,6 +3646,12 @@ function displayResults(data) {
     setTimeout(() => {
         resultsPanel.scrollIntoView({ behavior: 'smooth' });
     }, 100);
+}
+
+function formatStageName(stageName) {
+	return stageName
+		.replace(/[_\-]/g, ' ')           // Replace underscores or hyphens with spaces
+		.replace(/\b\w/g, c => c.toUpperCase()); // Capitalize each word
 }
 
 // Helper function to format a source object consistently
