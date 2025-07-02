@@ -1,6 +1,6 @@
-OPENAI_API_KEY = "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"
-GOOGLE_API_KEY = "AIzaSyCqfdZs_3AVoVfTp12HFq2K13pIAzWZuwA"
-GOOGLE_CSE_ID = "458d83a33d76149ba"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
 
 import os
 import io
