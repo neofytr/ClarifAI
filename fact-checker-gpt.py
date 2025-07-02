@@ -367,15 +367,216 @@ class EnhancedSearchEngine:
         # Stage 5: Context-Aware Source Selection
         final_sources = await self._context_aware_source_selection(processed_results, claims_analysis)
         
+        # Stage 6: Calculate comprehensive confidence metrics
+        confidence_metrics = self._calculate_search_confidence(final_sources, search_results, query_strategies)
+        
         return {
-            "claims_analysis": claims_analysis,
-            "search_strategies": query_strategies,
-            "total_results_found": len(search_results),
-            "processed_results": len(processed_results),
-            "final_sources": final_sources,
-            "pipeline_duration": round(time.time() - pipeline_start, 2),
-            "confidence_metrics": self._calculate_search_confidence(final_sources)
+        "claims_analysis": claims_analysis,
+        "search_strategies": query_strategies,
+        "total_results_found": len(search_results),
+        "processed_results": len(processed_results),
+        "final_sources": final_sources,
+        "credible_sources": [s for s in final_sources if s.get("credibility_score", 0) > 0.7],
+        "search_metadata": {
+            "total_results": len(search_results),
+            "fact_check_sources": len([s for s in final_sources if self._is_fact_check_source(s)]),
+            "high_credibility_sources": len([s for s in final_sources if s.get("credibility_score", 0) > 0.8]),
+            "query_strategies_used": len(query_strategies),
+        },
+        "pipeline_duration": round(time.time() - pipeline_start, 2),
+        "confidence_metrics": confidence_metrics
+    }
+
+    def _calculate_search_confidence(self, final_sources: List[Dict], all_results: List[Dict], query_strategies: Dict) -> Dict[str, float]:
+        """Calculate comprehensive search confidence metrics"""
+        if not final_sources:
+            return {
+            "overall_confidence": 0.0,
+            "source_quality_score": 0.0,
+            "coverage_score": 0.0,
+            "consensus_score": 0.0,
+            "recency_score": 0.0
         }
+
+        # Source Quality Score (0-1)
+        credibility_scores = [s.get("credibility_score", 0.5) for s in final_sources]
+        source_quality_score = sum(credibility_scores) / len(credibility_scores) if credibility_scores else 0.0
+        
+        # Coverage Score - how well we covered different search strategies (0-1)
+        strategies_with_results = set()
+        for source in final_sources:
+            strategy = source.get("search_strategy", "unknown")
+        if strategy != "unknown":
+            strategies_with_results.add(strategy)
+    
+        total_strategies = len(query_strategies) if query_strategies else 1
+        coverage_score = len(strategies_with_results) / total_strategies if total_strategies > 0 else 0.0
+    
+    # Consensus Score - agreement between sources (0-1)
+    # This is a simplified version - you might want to implement more sophisticated consensus analysis
+        high_credibility_sources = [s for s in final_sources if s.get("credibility_score", 0) > 0.7]
+        consensus_score = len(high_credibility_sources) / len(final_sources) if final_sources else 0.0
+    
+    # Recency Score - how recent the sources are (0-1)
+        recent_sources = 0
+        for source in final_sources:
+            temporal_indicators = source.get("temporal_indicators", {})
+            if temporal_indicators.get("has_recent_indicators", False):
+                recent_sources += 1
+        recency_score = recent_sources / len(final_sources) if final_sources else 0.0
+    
+    # Overall confidence (weighted average)
+        overall_confidence = (
+        source_quality_score * 0.4 +
+        coverage_score * 0.25 +
+        consensus_score * 0.25 +
+        recency_score * 0.1
+    )
+    
+        return {
+        "overall_confidence": round(overall_confidence, 3),
+        "source_quality_score": round(source_quality_score, 3),
+        "coverage_score": round(coverage_score, 3),
+        "consensus_score": round(consensus_score, 3),
+        "recency_score": round(recency_score, 3)
+    }
+
+    def _is_fact_check_source(self, source: Dict) -> bool:
+        """Check if a source is from a fact-checking organization"""
+        domain = source.get("domain", "").lower()
+        fact_check_domains = [
+            "snopes.com", "factcheck.org", "politifact.com", "reuters.com/fact-check",
+            "apnews.com/hub/ap-fact-check", "bbc.com/reality-check", "washingtonpost.com/news/fact-checker"
+        ]
+        return any(fc_domain in domain for fc_domain in fact_check_domains)
+
+    async def _advanced_result_processing(self, search_results: List[Dict[str, Any]], content: str, claims_analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Process and enhance search results with additional analysis"""
+        if not search_results:
+            return []
+
+        processed_results = []
+
+        for result in search_results:
+            try:
+                # Enhance existing result with additional processing
+                enhanced_result = result.copy()
+
+                # Add content relevance score
+                enhanced_result["content_relevance"] = self._calculate_content_relevance(
+                    result.get("snippet", ""), content
+                )
+
+                # Add claim-specific relevance
+                enhanced_result["claim_relevance"] = self._calculate_claim_relevance(
+                    result, claims_analysis.get("primary_claims", [])
+                )
+
+                # Calculate composite score
+                enhanced_result["composite_score"] = self._calculate_composite_score(enhanced_result)
+
+                processed_results.append(enhanced_result)
+
+            except Exception as e:
+                print(f"Error processing result: {e}")
+                # Include original result even if processing fails
+                processed_results.append(result)
+
+        # Sort by composite score
+        processed_results.sort(key=lambda x: x.get("composite_score", 0), reverse=True)
+
+        return processed_results
+
+    def _calculate_content_relevance(self, snippet: str, original_content: str) -> float:
+        """Calculate how relevant a search result snippet is to the original content"""
+        if not snippet or not original_content:
+            return 0.0
+
+        snippet_words = set(snippet.lower().split())
+        content_words = set(original_content.lower().split())
+
+        if not content_words:
+            return 0.0
+
+        overlap = len(snippet_words.intersection(content_words))
+        return overlap / len(content_words)
+
+    def _calculate_claim_relevance(self, result: Dict, claims: List[Dict]) -> float:
+        """Calculate how relevant a result is to specific claims"""
+        if not claims or not result.get("snippet"):
+            return 0.0
+
+        snippet = result["snippet"].lower()
+        total_relevance = 0.0
+
+        for claim in claims:
+            claim_text = claim.get("claim", "").lower()
+            if claim_text:
+                claim_words = set(claim_text.split())
+                snippet_words = set(snippet.split())
+
+                if claim_words:
+                    overlap = len(claim_words.intersection(snippet_words))
+                    claim_relevance = overlap / len(claim_words)
+                    total_relevance += claim_relevance
+
+        return total_relevance / len(claims) if claims else 0.0
+
+    def _calculate_composite_score(self, result: Dict) -> float:
+        """Calculate a composite score for ranking search results"""
+        credibility_score = result.get("credibility_score", 0.5)
+        content_relevance = result.get("content_relevance", 0.0)
+        claim_relevance = result.get("claim_relevance", 0.0)
+        relevance_metrics = result.get("relevance_metrics", {})
+        total_relevance = relevance_metrics.get("total_score", 0.0)
+
+        # Weighted composite score
+        composite_score = (
+            credibility_score * 0.3 +
+            content_relevance * 0.25 +
+            claim_relevance * 0.25 +
+            total_relevance * 0.2
+        )
+
+        return composite_score
+
+    async def _context_aware_source_selection(self, processed_results: List[Dict[str, Any]], claims_analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Select the most relevant and credible sources based on context"""
+        if not processed_results:
+            return []
+
+        # Filter out low-quality results
+        filtered_results = [
+            result for result in processed_results
+            if result.get("credibility_score", 0) > 0.3 and result.get("composite_score", 0) > 0.1
+        ]
+
+        if not filtered_results:
+            # If filtering removes everything, keep top results from original
+            filtered_results = processed_results[:10]
+
+        # Group by search strategy to ensure diversity
+        strategy_groups = {}
+        for result in filtered_results:
+            strategy = result.get("search_strategy", "unknown")
+            if strategy not in strategy_groups:
+                strategy_groups[strategy] = []
+            strategy_groups[strategy].append(result)
+
+        # Select top results from each strategy
+        final_sources = []
+        max_per_strategy = 3
+
+        for strategy, results in strategy_groups.items():
+            # Sort by composite score and take top results
+            sorted_results = sorted(results, key=lambda x: x.get("composite_score", 0), reverse=True)
+            final_sources.extend(sorted_results[:max_per_strategy])
+
+        # Sort final sources by composite score and limit total
+        final_sources.sort(key=lambda x: x.get("composite_score", 0), reverse=True)
+
+        # Return top 15 sources to avoid overwhelming the analysis
+        return final_sources[:15]
 
     async def _extract_and_analyze_claims(self, content: str) -> Dict[str, Any]:
         """Extract and categorize factual claims from content"""
@@ -1201,9 +1402,6 @@ class AdvancedFactChecker:
                 "image_processed": enhanced_content["image_processed"]
             } 
              
-            print("\n\n")
-            print("content preprocessing -> ")
-            print(analysis_result)
             
             if enhanced_content["image_analysis"]:
                 analysis_result["image_analysis"] = enhanced_content["image_analysis"]
@@ -1218,10 +1416,7 @@ class AdvancedFactChecker:
                 **search_pipeline_result["confidence_metrics"]
             }
             
-            print("\n\n")
-            print("stage 2 -> ")
-            print(analysis_result["pipeline_stages"]["search_pipeline"])
-            
+            # Stage 3: Multi-Perspective Evidence Analysis
             stage_start = time.time()
             evidence_analysis = await self._multi_perspective_evidence_analysis(
         enhanced_content["final_content"],
@@ -1229,8 +1424,6 @@ class AdvancedFactChecker:
         search_pipeline_result["claims_analysis"]
 )
 
-            # Debug: Print the actual structure
-            print(f"Evidence analysis structure: {evidence_analysis.keys() if evidence_analysis else 'None'}")
 
             # Fix: Safely access all keys with proper fallbacks
             perspective_analyses = evidence_analysis.get("perspective_analyses", {})
@@ -1243,10 +1436,7 @@ class AdvancedFactChecker:
                 "perspectives_analyzed": perspectives_count,
                 "evidence_strength": evidence_analysis.get("overall_evidence_strength", "unknown")
             }
-            
-            print("\n\n")
-            print("stage 3 -> ")
-            print(analysis_result["pipeline_stages"]["evidence_analysis"])
+        
             
             # Stage 4: Advanced Credibility Assessment
             stage_start = time.time()
@@ -1261,10 +1451,6 @@ class AdvancedFactChecker:
                "overall_credibility": credibility_assessment["overall_credibility_score"]
            }
             
-            print("\n\n")
-            print("stage 4 -> ")
-            print(analysis_result["pipeline_stages"]["credibility_assessment"])
-            
            # Stage 5: Expert Domain Analysis
             stage_start = time.time()
             domain_analysis = await self._expert_domain_analysis(
@@ -1277,10 +1463,6 @@ class AdvancedFactChecker:
                "domains_analyzed": len(domain_analysis["domain_assessments"]),
                "expert_consensus_level": domain_analysis["consensus_metrics"]["overall_consensus"]
            }
-            
-            print("\n\n")
-            print("stage 5 -> ")
-            print(analysis_result["pipeline_stages"]["domain_analysis"])
             
            # Stage 6: Comprehensive Verdict Generation
             stage_start = time.time()
@@ -1301,7 +1483,6 @@ class AdvancedFactChecker:
             print("stage 6 -> ")
             print(analysis_result["pipeline_stages"]["verdict_generation"])
             
-           # Compile final comprehensive result
             analysis_result.update({
                "search_results": search_pipeline_result,
                "evidence_analysis": evidence_analysis,
@@ -1314,12 +1495,12 @@ class AdvancedFactChecker:
             
         except Exception as e:
             analysis_result["error"] = {
-               "type": type(e).__name__,
-               "message": str(e),
-               "stage": "pipeline_execution"
-           }
+        "type": type(e).__name__,
+        "message": str(e),
+        "stage": "pipeline_execution"
+    }
            
-        print("\n\ndone\n\n") 
+        print(analysis_result)
         return analysis_result
 
     async def _analyze_content_metadata(self, content: str) -> Dict[str, Any]:
@@ -1711,14 +1892,23 @@ class AdvancedFactChecker:
     async def _expert_domain_analysis(self, content: str, claims_analysis: Dict[str, Any], 
                                    evidence_analysis: Dict[str, Any]) -> Dict[str, Any]:
        """Analyze content from expert domain perspectives"""
-       domain_categories = claims_analysis.get('primary_claims', [{}])[0].get('category', 'general')
+       primary_claims = claims_analysis.get('primary_claims', [])
+       if primary_claims:
+        domain_categories = primary_claims[0].get('category', 'general')
+       else:
+        domain_categories = 'general'
+        
+       if not primary_claims:
+        print("Warning: No primary claims found; defaulting domain category to 'general'")
+
+
        
        domain_prompt = f"""
        As a domain expert in {domain_categories}, analyze this content and claims:
 
        CONTENT: "{content[:400]}..."
 
-       CLAIMS: {json.dumps([claim['claim'] for claim in claims_analysis.get('primary_claims', [])], indent=2)}
+       "CLAIMS: {json.dumps([claim.get('claim', '') for claim in claims_analysis.get('primary_claims', [])], indent=2)}"
 
        EVIDENCE STRENGTH: {evidence_analysis.get('overall_evidence_strength', 'unknown')}
 
@@ -2492,6 +2682,189 @@ async def read_root():
             .sources-grid {
                 grid-template-columns: 1fr;
             }
+            
+            /* Error Panel Styles */
+.error-panel {
+    margin: 20px 0;
+    padding: 0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.15);
+    background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+    border: 1px solid #feb2b2;
+    animation: slideIn 0.3s ease-out;
+}
+
+.error-container {
+    padding: 20px;
+}
+
+.error-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #feb2b2;
+}
+
+.error-icon {
+    font-size: 24px;
+    margin-right: 12px;
+    filter: drop-shadow(0 2px 4px rgba(220, 53, 69, 0.2));
+}
+
+.error-title {
+    color: #c53030;
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.error-content {
+    margin-bottom: 15px;
+}
+
+.error-message {
+    color: #742a2a;
+    font-size: 16px;
+    line-height: 1.5;
+    margin: 0 0 20px 0;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 6px;
+    border-left: 4px solid #e53e3e;
+}
+
+.error-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.error-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.retry-button {
+    background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+    color: white;
+}
+
+.retry-button:hover {
+    background: linear-gradient(135deg, #c53030 0%, #9c2626 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.details-button {
+    background: linear-gradient(135deg, #718096 0%, #4a5568 100%);
+    color: white;
+}
+
+.details-button:hover {
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(74, 85, 104, 0.3);
+}
+
+.error-details {
+    margin-top: 20px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 6px;
+    border: 1px solid #feb2b2;
+    animation: slideDown 0.3s ease-out;
+}
+
+.error-details h4 {
+    color: #c53030;
+    margin: 0 0 15px 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.error-details ul {
+    margin: 0 0 15px 0;
+    padding-left: 20px;
+    color: #742a2a;
+}
+
+.error-details li {
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.error-timestamp {
+    font-size: 12px;
+    color: #a0aec0;
+    text-align: right;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #feb2b2;
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        max-height: 300px;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .error-panel {
+        margin: 15px 0;
+    }
+    
+    .error-container {
+        padding: 15px;
+    }
+    
+    .error-header {
+        flex-direction: column;
+        align-items: flex-start;
+        text-align: left;
+    }
+    
+    .error-icon {
+        margin-right: 0;
+        margin-bottom: 8px;
+    }
+    
+    .error-actions {
+        justify-content: stretch;
+    }
+    
+    .error-button {
+        flex: 1;
+        min-width: 120px;
+    }
+}
         }
     </style>
 </head>
@@ -2617,9 +2990,13 @@ async def read_root():
     method: 'POST',
     body: formData
 });
-
-        
         const data = await response.json();
+        
+        if (data.error) {
+        console.log("ERROR DETECTED - calling displayError");
+        displayError(`${data.error.type}: ${data.error.message}`);
+        return;
+    }
         
         if (response.ok) {
             displayResults(data);
@@ -2635,99 +3012,310 @@ async def read_root():
     }
 });
 
+function displayError(errorMessage) {
+    console.log("displayError called with:", errorMessage);
+    
+    // Hide any existing results
+    if (typeof resultsPanel !== 'undefined') {
+        resultsPanel.style.display = 'none';
+    }
+    
+    // Create or find error display element
+    let errorPanel = document.getElementById('error-panel');
+    if (!errorPanel) {
+        errorPanel = document.createElement('div');
+        errorPanel.id = 'error-panel';
+        errorPanel.className = 'error-panel';
+        
+        // Insert after the form or wherever appropriate
+        const form = document.querySelector('form') || document.querySelector('.input-section');
+        if (form && form.parentNode) {
+            form.parentNode.insertBefore(errorPanel, form.nextSibling);
+        } else {
+            document.body.appendChild(errorPanel);
+        }
+    }
+    
+    // Display error message
+    errorPanel.innerHTML = `
+        <div class="error-container">
+            <div class="error-header">
+                <div class="error-icon">⚠️</div>
+                <h3 class="error-title">Analysis Error</h3>
+            </div>
+            <div class="error-content">
+                <p class="error-message">${escapeHtml(errorMessage)}</p>
+                <div class="error-actions">
+                    <button onclick="hideError()" class="error-button retry-button">Try Again</button>
+                    <button onclick="showErrorDetails()" class="error-button details-button">Show Details</button>
+                </div>
+            </div>
+            <div class="error-details" id="error-details" style="display: none;">
+                <h4>Troubleshooting Tips:</h4>
+                <ul>
+                    <li>Check your internet connection</li>
+                    <li>Ensure the fact-checking service is running</li>
+                    <li>Try with a shorter or simpler claim</li>
+                    <li>Contact support if the problem persists</li>
+                </ul>
+                <div class="error-timestamp">
+                    Error occurred at: ${new Date().toLocaleString()}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Show the error panel
+    errorPanel.style.display = 'block';
+    
+    // Scroll to error
+    setTimeout(() => {
+        errorPanel.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+    
+    // Auto-hide success message if it exists
+    const successMessage = document.querySelector('.success-message');
+    if (successMessage) {
+        successMessage.style.display = 'none';
+    }
+}
+
+// Helper function to hide error
+function hideError() {
+    const errorPanel = document.getElementById('error-panel');
+    if (errorPanel) {
+        errorPanel.style.display = 'none';
+    }
+    
+    // Reset form if needed
+    const form = document.querySelector('form');
+    if (form) {
+        // Re-enable submit button if it was disabled
+        const submitButton = form.querySelector('button[type="submit"], .verify-button');
+        if (submitButton) {
+            submitButton.disabled = false;
+        }
+    }
+    
+    // Hide progress indicator
+    const progressIndicator = document.querySelector('.analysis-progress, .loading-indicator');
+    if (progressIndicator) {
+        progressIndicator.style.display = 'none';
+    }
+}
+
+// Helper function to show error details
+function showErrorDetails() {
+    const errorDetails = document.getElementById('error-details');
+    if (errorDetails) {
+        const isVisible = errorDetails.style.display !== 'none';
+        errorDetails.style.display = isVisible ? 'none' : 'block';
+        
+        // Update button text
+        const detailsButton = document.querySelector('.details-button');
+        if (detailsButton) {
+            detailsButton.textContent = isVisible ? 'Show Details' : 'Hide Details';
+        }
+    }
+}
+
+// Helper function to escape HTML (if not already defined)
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function displayResults(data) {
+    console.log("Full data received:", data); // Debug log
+    
     // Handle error case
     if (data.error) {
         displayError(`${data.error.type}: ${data.error.message}`);
         return;
     }
     
-    // Extract data from complex nested structure
+    // Extract data from complex nested structure with better fallbacks
     const finalVerdict = data.final_verdict || {};
     const evidenceAnalysis = data.evidence_analysis || {};
     const credibilityAssessment = data.credibility_assessment || {};
     const searchResults = data.search_results || {};
     const domainAnalysis = data.domain_analysis || {};
     
-    // Extract basic verdict info
-    const verdict = finalVerdict.verdict_category || finalVerdict.verdict || 'unknown';
-    const confidence = Math.round(finalVerdict.confidence_score || 0);
-    const summary = finalVerdict.explanation || finalVerdict.summary || 'No summary available';
+    console.log("Final verdict:", finalVerdict); // Debug log
+    console.log("Search results:", searchResults); // Debug log
     
-    // Extract key findings
+    // Extract basic verdict info with multiple fallback paths
+    let verdict = 'unknown';
+    let confidence = 0;
+    let summary = 'No summary available';
+    
+    // Try multiple paths for verdict
+    if (finalVerdict.verdict_category) {
+        verdict = finalVerdict.verdict_category;
+    } else if (finalVerdict.verdict) {
+        verdict = finalVerdict.verdict;
+    } else if (finalVerdict.classification) {
+        verdict = finalVerdict.classification;
+    } else if (finalVerdict.result) {
+        verdict = finalVerdict.result;
+    }
+    
+    // Try multiple paths for confidence
+    if (finalVerdict.confidence_score !== undefined) {
+        confidence = Math.round(finalVerdict.confidence_score * 100);
+    } else if (finalVerdict.confidence !== undefined) {
+        confidence = Math.round(finalVerdict.confidence * 100);
+    } else if (finalVerdict.certainty_score !== undefined) {
+        confidence = Math.round(finalVerdict.certainty_score * 100);
+    } else if (credibilityAssessment.overall_credibility_score !== undefined) {
+        confidence = Math.round(credibilityAssessment.overall_credibility_score * 100);
+    }
+    
+    // Try multiple paths for summary
+    if (finalVerdict.explanation) {
+        summary = finalVerdict.explanation;
+    } else if (finalVerdict.summary) {
+        summary = finalVerdict.summary;
+    } else if (finalVerdict.analysis_summary) {
+        summary = finalVerdict.analysis_summary;
+    } else if (finalVerdict.conclusion) {
+        summary = finalVerdict.conclusion;
+    }
+    
+    // Extract key findings from multiple sources
     const keyFindings = [];
-    if (finalVerdict.key_points) {
+    
+    // Try different paths for key findings
+    if (finalVerdict.key_points && Array.isArray(finalVerdict.key_points)) {
         keyFindings.push(...finalVerdict.key_points);
     }
-    if (evidenceAnalysis.key_insights) {
+    if (finalVerdict.key_findings && Array.isArray(finalVerdict.key_findings)) {
+        keyFindings.push(...finalVerdict.key_findings);
+    }
+    if (evidenceAnalysis.key_insights && Array.isArray(evidenceAnalysis.key_insights)) {
         keyFindings.push(...evidenceAnalysis.key_insights);
     }
-    if (domainAnalysis.key_findings) {
+    if (domainAnalysis.key_findings && Array.isArray(domainAnalysis.key_findings)) {
         keyFindings.push(...domainAnalysis.key_findings);
+    }
+    if (finalVerdict.findings && Array.isArray(finalVerdict.findings)) {
+        keyFindings.push(...finalVerdict.findings);
     }
     
     // Extract evidence for and against
     const evidenceFor = [];
     const evidenceAgainst = [];
     
-    if (evidenceAnalysis.supporting_evidence) {
+    // Supporting evidence
+    if (evidenceAnalysis.supporting_evidence && Array.isArray(evidenceAnalysis.supporting_evidence)) {
         evidenceFor.push(...evidenceAnalysis.supporting_evidence);
     }
-    if (evidenceAnalysis.contradicting_evidence) {
-        evidenceAgainst.push(...evidenceAnalysis.contradicting_evidence);
-    }
-    if (finalVerdict.evidence_summary?.supporting_points) {
+    if (finalVerdict.evidence_summary?.supporting_points && Array.isArray(finalVerdict.evidence_summary.supporting_points)) {
         evidenceFor.push(...finalVerdict.evidence_summary.supporting_points);
     }
-    if (finalVerdict.evidence_summary?.contradicting_points) {
+    if (finalVerdict.supporting_evidence && Array.isArray(finalVerdict.supporting_evidence)) {
+        evidenceFor.push(...finalVerdict.supporting_evidence);
+    }
+    
+    // Contradicting evidence
+    if (evidenceAnalysis.contradicting_evidence && Array.isArray(evidenceAnalysis.contradicting_evidence)) {
+        evidenceAgainst.push(...evidenceAnalysis.contradicting_evidence);
+    }
+    if (finalVerdict.evidence_summary?.contradicting_points && Array.isArray(finalVerdict.evidence_summary.contradicting_points)) {
         evidenceAgainst.push(...finalVerdict.evidence_summary.contradicting_points);
     }
+    if (finalVerdict.contradicting_evidence && Array.isArray(finalVerdict.contradicting_evidence)) {
+        evidenceAgainst.push(...finalVerdict.contradicting_evidence);
+    }
     
-    // Extract context and recommendations
-    const context = finalVerdict.context || 
-                   credibilityAssessment.context_analysis || 
-                   domainAnalysis.contextual_factors?.join('. ') || '';
+    // Extract context and recommendations with fallbacks
+    let context = '';
+    if (finalVerdict.context) {
+        context = finalVerdict.context;
+    } else if (credibilityAssessment.context_analysis) {
+        context = credibilityAssessment.context_analysis;
+    } else if (domainAnalysis.contextual_factors && Array.isArray(domainAnalysis.contextual_factors)) {
+        context = domainAnalysis.contextual_factors.join('. ');
+    } else if (finalVerdict.additional_context) {
+        context = finalVerdict.additional_context;
+    }
     
-    const recommendations = finalVerdict.recommendations || 
-                           credibilityAssessment.recommendations || 
-                           domainAnalysis.recommendations || '';
+    let recommendations = '';
+    if (finalVerdict.recommendations) {
+        if (Array.isArray(finalVerdict.recommendations)) {
+            recommendations = finalVerdict.recommendations.join(', ');
+        } else {
+            recommendations = finalVerdict.recommendations;
+        }
+    } else if (credibilityAssessment.recommendations) {
+        if (Array.isArray(credibilityAssessment.recommendations)) {
+            recommendations = credibilityAssessment.recommendations.join(', ');
+        } else {
+            recommendations = credibilityAssessment.recommendations;
+        }
+    } else if (domainAnalysis.recommendations) {
+        if (Array.isArray(domainAnalysis.recommendations)) {
+            recommendations = domainAnalysis.recommendations.join(', ');
+        } else {
+            recommendations = domainAnalysis.recommendations;
+        }
+    }
     
-    // Extract and format sources
+    // Extract and format sources with improved fallback logic
     const sources = [];
-    if (searchResults.final_sources) {
-        sources.push(...searchResults.final_sources.map(source => ({
-            title: source.title || source.name || 'Unknown Source',
-            domain: source.domain || source.url || source.source || 'Unknown Domain',
-            snippet: source.snippet || source.summary || source.content?.substring(0, 200) || 'No preview available',
-            credibility_score: source.credibility_score || source.reliability_score || 0.5
-        })));
+    
+    // Try multiple paths for sources
+    if (searchResults.final_sources && Array.isArray(searchResults.final_sources)) {
+        sources.push(...searchResults.final_sources.map(source => formatSource(source)));
     }
-    if (searchResults.credible_sources) {
-        sources.push(...searchResults.credible_sources.map(source => ({
-            title: source.title || 'Credible Source',
-            domain: source.domain || source.url || 'Unknown Domain',
-            snippet: source.snippet || source.summary || 'No preview available',
-            credibility_score: source.credibility_score || 0.8
-        })));
+    if (searchResults.credible_sources && Array.isArray(searchResults.credible_sources)) {
+        sources.push(...searchResults.credible_sources.map(source => formatSource(source)));
+    }
+    if (finalVerdict.sources && Array.isArray(finalVerdict.sources)) {
+        sources.push(...finalVerdict.sources.map(source => formatSource(source)));
+    }
+    if (evidenceAnalysis.sources && Array.isArray(evidenceAnalysis.sources)) {
+        sources.push(...evidenceAnalysis.sources.map(source => formatSource(source)));
     }
     
-    // Extract metadata
-    const totalResults = searchResults.search_metadata?.total_results || 
-                        searchResults.total_sources_found || 
-                        sources.length || 0;
+    // Remove duplicates based on domain
+    const uniqueSources = [];
+    const seenDomains = new Set();
+    for (const source of sources) {
+        if (!seenDomains.has(source.domain)) {
+            uniqueSources.push(source);
+            seenDomains.add(source.domain);
+        }
+    }
     
-    const factCheckSources = searchResults.search_metadata?.fact_check_sources ||
-                            searchResults.fact_check_sources?.length ||
-                            sources.filter(s => s.credibility_score > 0.7).length || 0;
+    // Extract metadata with better fallbacks
+    let totalResults = 0;
+    let factCheckSources = 0;
+    
+    if (searchResults.search_metadata) {
+        totalResults = searchResults.search_metadata.total_results || 
+                      searchResults.total_results_found || 
+                      uniqueSources.length || 0;
+        factCheckSources = searchResults.search_metadata.fact_check_sources || 0;
+    } else {
+        totalResults = searchResults.total_results_found || 
+                      searchResults.total_sources_found || 
+                      uniqueSources.length || 0;
+        factCheckSources = uniqueSources.filter(s => s.credibility_score > 0.8).length;
+    }
     
     const analysisTime = data.total_pipeline_duration || 
-                        Object.values(data.pipeline_stages || {})
-                              .reduce((sum, stage) => sum + (stage.duration || 0), 0) || 0;
+                        (data.pipeline_stages ? 
+                         Object.values(data.pipeline_stages)
+                               .reduce((sum, stage) => sum + (stage.duration || 0), 0) : 0);
     
+    // Generate the HTML display
     resultsPanel.innerHTML = `
         <div class="results-header">
             <div class="verdict-display">
-                <span class="verdict-badge ${verdict.toLowerCase()}">${formatVerdict(verdict)}</span>
+                <span class="verdict-badge ${verdict.toLowerCase().replace(/[^a-z]/g, '-')}">${formatVerdict(verdict)}</span>
                 <div class="confidence-meter">
                     <div class="confidence-track">
                         <div class="confidence-fill" style="width: ${confidence}%"></div>
@@ -2747,7 +3335,7 @@ function displayResults(data) {
                 <div class="result-section">
                     <h3 class="section-title">Key Findings</h3>
                     <ul class="section-list">
-                        ${keyFindings.map(finding => `<li>${finding}</li>`).join('')}
+                        ${keyFindings.map(finding => `<li>${escapeHtml(finding)}</li>`).join('')}
                     </ul>
                 </div>
             ` : ''}
@@ -2756,7 +3344,7 @@ function displayResults(data) {
                 <div class="result-section">
                     <h3 class="section-title">Supporting Evidence</h3>
                     <ul class="section-list">
-                        ${evidenceFor.map(evidence => `<li>${evidence}</li>`).join('')}
+                        ${evidenceFor.map(evidence => `<li>${escapeHtml(evidence)}</li>`).join('')}
                     </ul>
                 </div>
             ` : ''}
@@ -2765,7 +3353,7 @@ function displayResults(data) {
                 <div class="result-section">
                     <h3 class="section-title">Contradicting Evidence</h3>
                     <ul class="section-list">
-                        ${evidenceAgainst.map(evidence => `<li>${evidence}</li>`).join('')}
+                        ${evidenceAgainst.map(evidence => `<li>${escapeHtml(evidence)}</li>`).join('')}
                     </ul>
                 </div>
             ` : ''}
@@ -2773,28 +3361,29 @@ function displayResults(data) {
             ${context ? `
                 <div class="result-section">
                     <h3 class="section-title">Additional Context</h3>
-                    <p class="section-content">${context}</p>
+                    <p class="section-content">${escapeHtml(context)}</p>
                 </div>
             ` : ''}
             
             ${recommendations ? `
                 <div class="result-section">
                     <h3 class="section-title">Recommendations</h3>
-                    <p class="section-content">${recommendations}</p>
+                    <p class="section-content">${escapeHtml(recommendations)}</p>
                 </div>
             ` : ''}
             
-            ${sources.length > 0 ? `
+            ${uniqueSources.length > 0 ? `
                 <div class="result-section">
                     <h3 class="section-title">Source Analysis</h3>
                     <div class="sources-grid">
-                        ${sources.slice(0, 5).map(source => `
+                        ${uniqueSources.slice(0, 8).map(source => `
                             <div class="source-card">
-                                <div class="source-header">${source.title}</div>
-                                <div class="source-domain">${source.domain}</div>
-                                <div class="source-excerpt">${source.snippet}</div>
+                                <div class="source-header">${escapeHtml(source.title)}</div>
+                                <div class="source-domain">${escapeHtml(source.domain)}</div>
+                                <div class="source-excerpt">${escapeHtml(source.snippet)}</div>
                                 <div class="source-meta">
                                     <span class="credibility-score">Reliability: ${Math.round(source.credibility_score * 100)}%</span>
+                                    ${source.link ? `<a href="${source.link}" target="_blank" rel="noopener">View Source</a>` : ''}
                                 </div>
                             </div>
                         `).join('')}
@@ -2809,7 +3398,8 @@ function displayResults(data) {
                         ${Object.entries(data.pipeline_stages).map(([stage, info]) => `
                             <div class="pipeline-stage">
                                 <span class="stage-name">${formatStageName(stage)}</span>
-                                <span class="stage-duration">${info.duration}s</span>
+                                <span class="stage-duration">${info.duration || 0}s</span>
+                                ${info.status ? `<span class="stage-status">${info.status}</span>` : ''}
                             </div>
                         `).join('')}
                     </div>
@@ -2847,37 +3437,58 @@ function displayResults(data) {
     }, 100);
 }
 
-function displayError(message) {
-    resultsPanel.innerHTML = `
-        <div class="results-content">
-            <div class="error-display">
-                <h3>Verification Error</h3>
-                <p>${message}</p>
-            </div>
-        </div>
-    `;
-    resultsPanel.style.display = 'block';
+// Helper function to format a source object consistently
+function formatSource(source) {
+    return {
+        title: source.title || source.name || source.headline || 'Unknown Source',
+        domain: source.domain || extractDomain(source.url || source.link) || 'Unknown Domain',
+        snippet: source.snippet || source.summary || source.description || 
+                (source.content ? source.content.substring(0, 200) + '...' : 'No preview available'),
+        credibility_score: source.credibility_score || source.reliability_score || source.score || 0.5,
+        link: source.link || source.url || '#'
+    };
 }
 
-// Helper function to format stage names for display
-function formatStageName(stageName) {
-    return stageName
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, l => l.toUpperCase());
+// Helper function to extract domain from URL
+function extractDomain(url) {
+    if (!url) return 'Unknown Domain';
+    try {
+        return new URL(url).hostname;
+    } catch {
+        return url.split('/')[0] || 'Unknown Domain';
+    }
 }
 
-// Helper function to format verdict display (assuming this exists)
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Enhanced formatVerdict function
 function formatVerdict(verdict) {
     const verdictMap = {
         'true': 'TRUE',
         'false': 'FALSE',
         'mostly-true': 'MOSTLY TRUE',
+        'mostly_true': 'MOSTLY TRUE',
         'mostly-false': 'MOSTLY FALSE',
+        'mostly_false': 'MOSTLY FALSE',
         'mixed': 'MIXED',
+        'partially-true': 'PARTIALLY TRUE',
+        'partially_true': 'PARTIALLY TRUE',
         'unverified': 'UNVERIFIED',
-        'unknown': 'UNKNOWN'
+        'unsubstantiated': 'UNSUBSTANTIATED',
+        'disputed': 'DISPUTED',
+        'misleading': 'MISLEADING',
+        'unknown': 'UNKNOWN',
+        'inconclusive': 'INCONCLUSIVE'
     };
-    return verdictMap[verdict.toLowerCase()] || verdict.toUpperCase();
+    
+    const normalizedVerdict = verdict.toLowerCase().replace(/[^a-z]/g, '_');
+    return verdictMap[normalizedVerdict] || verdict.toUpperCase();
 }
     </script>
 </body>
@@ -2910,6 +3521,7 @@ async def fact_check_endpoint(
             except Exception:
                 raise HTTPException(status_code=400, detail="Invalid image file")
         
+        print("in api")
         result = await fact_checker.comprehensive_fact_check_pipeline(content, image_obj)
         
         return result
